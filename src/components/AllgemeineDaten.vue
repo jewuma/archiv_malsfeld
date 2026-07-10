@@ -14,6 +14,15 @@
           </option>
         </select>
       </div>
+      <div class="col-3">
+        <label class="form-label">Thema</label>
+        <select class="form-select" v-model="lokal.ort">
+          <option :value="null">Bitte wählen</option>
+          <option v-for="thema in stammdaten.themen" :key="thema.id" :value="thema.id">
+            {{ thema.name }}
+          </option>
+        </select>
+      </div>
       <SchlagwortSelektor v-model="lokal.schlagworte"></SchlagwortSelektor>
       <!-- Beschreibung -->
       <div class="col-12">
@@ -29,15 +38,23 @@
       </div>
 
       <!-- Startjahr -->
-      <div class="col-md-4">
+      <div class="col-md-2">
         <label class="form-label">Startjahr</label>
         <input type="number" class="form-control" v-model="lokal.startJahr">
       </div>
+      <div class="col-md-2">
+        <label class="form-label">Startjahr Zusatz</label>
+        <input type="text" class="form-control" v-model="lokal.start_ergaenzung">
+      </div>
 
       <!-- Endjahr -->
-      <div class="col-md-4">
+      <div class="col-md-2">
         <label class="form-label">Endjahr</label>
         <input type="number" class="form-control" v-model="lokal.endJahr">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Endjahr Zusatz</label>
+        <input type="text" class="form-control" v-model="lokal.ende_ergaenzung">
       </div>
 
     </div>
@@ -65,6 +82,7 @@ export default {
         orte: [],
         objektTypen: [],
         quellen: [],
+        themen: [],
       }
     };
 
@@ -92,6 +110,8 @@ export default {
       this.stammdaten.objektTypen = objektTypenResponse.data.data;
       const quellenResponse = await this.$axios.get("/Quellen/getAll");
       this.stammdaten.quellen = quellenResponse.data.data;
+      const themenResponse = await this.$axios.get("/Themen/getAll");
+      this.stammdaten.themen = themenResponse.data.data;
       return this.stammdaten;
     },
   }

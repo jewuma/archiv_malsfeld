@@ -39,21 +39,33 @@
             <td>
               <select class="form-select form-select-sm" v-model="objekt.quellen_id">
                 <option v-for="quelle in stammdaten.quellen" :key="quelle.id" :value="quelle.id">
-                  {{ quelle.bezeichnung }}
+                  {{ quelle.name + ", " + quelle.vorname }}
                 </option>
               </select>
             </td>
 
             <td>
-              <input class="form-control form-control-sm" v-model="objekt.lagerort">
+              <select class="form-select form-select-sm" v-model="objekt.lagerort_id">
+                <option v-for="lagerort in stammdaten.lagerorte" :key="lagerort.id" :value="lagerort.id">
+                  {{ lagerort.bezeichnung }}
+                </option>
+              </select>
             </td>
 
             <td>
-              <input class="form-control form-control-sm" v-model="objekt.regal">
+              <select class="form-select form-select-sm" v-model="objekt.regal_id">
+                <option v-for="regal in stammdaten.regale" :key="regal.id" :value="regal.id">
+                  {{ regal.langbezeichnung }}
+                </option>
+              </select>
             </td>
 
             <td>
-              <input class="form-control form-control-sm" v-model="objekt.fach">
+              <select class="form-select form-select-sm" v-model="objekt.fach_id">
+                <option v-for="fach in stammdaten.faecher" :key="fach.id" :value="fach.id">
+                  {{ fach.langbezeichnung }}
+                </option>
+              </select>
             </td>
             <td class="text-center">
               <select class="form-select form-select-sm" v-model="objekt.digitalisiert">
@@ -111,6 +123,9 @@ export default {
       stammdaten: {
         objektTypen: [],
         quellen: [],
+        lagerorte: [],
+        regale: [],
+        faecher: [],
       }
     };
   },
@@ -149,6 +164,12 @@ export default {
       this.stammdaten.objektTypen = objektTypenResponse.data.data.filter(typ => typ.analog_digital === "A");
       const quellenResponse = await this.$axios.get("/Quellen/getAll");
       this.stammdaten.quellen = quellenResponse.data.data;
+      const lagerorteResponse = await this.$axios.get("/Lagerorte/getAll");
+      this.stammdaten.lagerorte = lagerorteResponse.data.data;
+      const regaleResponse = await this.$axios.get("/Regale/getAll");
+      this.stammdaten.regale = regaleResponse.data.data;
+      const faecherResponse = await this.$axios.get("/Faecher/getAll");
+      this.stammdaten.faecher = faecherResponse.data.data;
       return this.stammdaten;
     },
   }

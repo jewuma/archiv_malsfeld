@@ -25,6 +25,7 @@ coverage
 *.sln
 *.sw?
 
+test/*
 *.tsbuildinfo
 
 .eslintcache

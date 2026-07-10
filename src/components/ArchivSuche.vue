@@ -1,5 +1,5 @@
 <template>
-  <CardComponent title="Archivsuche" :table-data="tableData" :fields="fields">
+  <CardComponent title="Archivsuche" :table-data="tableData" :fields="fields" :loading="loading">
     <div class="row g-3">
       <div class="col-md-4">
         <label class="form-label">Ort</label>
@@ -43,17 +43,17 @@ export default {
     return {
       fields:
         [
-          { name: 'id', label: 'ID', type: 'text', readonly: true, hidden: true },
+          { name: 'id', label: 'ID', type: 'text', readonly: true },
           { name: 'ort', label: 'Ort', type: 'text', 'width': '100px' },
           { name: 'thema', label: 'Thema', type: 'text' },
           { name: 'titel', label: 'Titel', type: 'text', 'width': '350px' },
+          { name: 'beschreibung', label: 'Beschreibung', type: 'text', 'width': '350px' },
           { name: 'datum', label: 'Datum', type: 'date', 'width': '150px' },
           { name: 'zeitraum_start', label: 'Zeitraum Start', type: 'text', 'width': '150px' },
           { name: 'zeitraum_ende', label: 'Zeitraum Ende', type: 'text', 'width': '150px' },
-          { name: 'objektart', label: 'Objektart', type: 'text' },
-          { name: 'dateiname', label: 'Dateiname', type: 'text' },
-          { name: 'file', label: 'Vorschau', type: 'pdf' }
+          { name: 'archivdatei', label: 'Vorschau', type: 'files' }
         ],
+      loading: "",
       suche: {
         ort_id: null,
         schlagworte_ids: [],
@@ -91,8 +91,18 @@ export default {
       this.suche.endJahr === 0
         ? delete this.suche.endJahr
         : this.suche.endJahr = this.suche.endJahr;
+      this.loading = "Suche läuft..."
       const response = await this.$axios.post("/Archiv/search", this.suche);
+      this.loading = "";
       this.tableData = response.data.data;
+      this.tableData.map(item => {
+        if (item.datei_anzahl === 1) {
+          item.archivdatei = { count: 1, firstId: item.erste_datei_id, type: "pdf" }
+        } else {
+          item.archivdatei = { count: item.datei_anzahl }
+        }
+        return item;
+      });
     }
   }
 }

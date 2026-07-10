@@ -6,14 +6,17 @@ use own\JsonResponse;
 use own\Validator;
 use own\ArchivDb;
 
-class Archiv {
+class Archiv
+{
   // Class implementation
   private \PDO $db;
-  public function __construct() {
+  public function __construct()
+  {
     $this->db = ArchivDb::getDbInstance();
   }
 
-  public function search(string $parameter): JsonResponse {
+  public function search(string $parameter): JsonResponse
+  {
     $param = Validator::validateJsonAgainstSchema($parameter, [
       "schlagworte_ids" => "array,optional",
       "ort_id" => "integer,optional",
@@ -33,41 +36,48 @@ class Archiv {
     $suchbegriff = isset($param["suchbegriff"]) && !empty($param["suchbegriff"]) ? "%" . $param["suchbegriff"] . "%" : null;
     $sql = "SELECT
     ao.id,
-    ao.thema,
-    ao.zeitraum_start,
-    ao.zeitraum_ende,
     ao.titel,
     ao.beschreibung,
-    ao.datum,
+    th.name AS thema,
     o.name AS ort,
-    CASE
-        WHEN EXISTS (
-            SELECT 1
-            FROM analogobjekte an
-            WHERE an.archivobjekt_id = ao.id
-        ) THEN 'Analog'
+    ao.zeitraum_start,
+    ao.zeitraum_ende,
+    ao.datum,
+    EXISTS(
+        SELECT 1
+        FROM analogobjekte an
+        WHERE an.archivobjekt_id = ao.id
+    ) AS hat_analog,
 
-        WHEN EXISTS (
-            SELECT 1
-            FROM dateien da
-            WHERE da.archivobjekt_id = ao.id
-        ) THEN 'Digital'
-    END AS objektart
+    (
+        SELECT COUNT(*)
+        FROM dateien d
+        WHERE d.archivobjekt_id = ao.id
+    ) AS datei_anzahl,
+
+    (
+        SELECT d.id
+        FROM dateien d
+        WHERE d.archivobjekt_id = ao.id
+        ORDER BY d.id
+        LIMIT 1
+    ) AS erste_datei_id
 
     FROM archivobjekte ao
 
     LEFT JOIN orte o ON o.id = ao.ort_id
+    LEFT JOIN themen th ON th.id = ao.themen_id
     WHERE 1 
     $schlagwortWhere 
     $ortWhere
     AND (:startJahr IS NULL OR ao.zeitraum_start >= :startJahr)
     AND (:endJahr IS NULL OR ao.zeitraum_ende <= :endJahr)
     AND (:suchbegriff IS NULL
-        OR ao.thema LIKE CONCAT('%', :suchbegriff, '%')
+        OR th.name LIKE CONCAT('%', :suchbegriff, '%')
         OR ao.titel LIKE CONCAT('%', :suchbegriff, '%')
         OR ao.beschreibung LIKE CONCAT('%', :suchbegriff, '%')
     )
-     LIMIT 500";
+     GROUP BY ao.id LIMIT 500";
     $paramArray = [
       ":startJahr" => $param["startJahr"] ?? null,
       ":endJahr" => $param["endJahr"] ?? null,

@@ -7,6 +7,7 @@ class FileResponse {
     public string $fileName,
     public string $mimeType,
     public ?string $fileContent = null,
+    public ?string $filePathForStreaming = null
   ) {
   }
 }

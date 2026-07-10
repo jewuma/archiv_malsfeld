@@ -10,6 +10,7 @@
             'text-center':
               field.type === 'boolean' ||
               field.type === 'pdf' ||
+              field.type === 'files' ||
               field.type === 'date' ||
               field.type === 'time' ||
               field?.align === 'center',
@@ -125,6 +126,7 @@
                 </button>
               </div>
             </template>
+            <TableFiles v-else-if="field.type === 'files'" :id="item.id" :item="item[field.name]"></TableFiles>
             <template v-else>
               <template v-if="isInlineEditable(field, item)">
                 <div class="d-flex align-items-center">
@@ -166,10 +168,11 @@
 
 <script>
 import FilterComponent from './FilterComponent.vue';
-
+import TableFiles from './TableFiles.vue';
 export default {
   components: {
-    FilterComponent
+    FilterComponent,
+    TableFiles
   },
   props: {
     fields: {

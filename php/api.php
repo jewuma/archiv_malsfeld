@@ -161,10 +161,18 @@ class API {
     header("Content-Description: File Transfer");
     header("Content-Type: " . $response->mimeType);
     header('Content-Disposition: attachment; filename="' . $response->fileName . '"');
-    header("Content-Length: " . strlen($response->fileContent));
-    header("Cache-Control: no-store, no-cache, must-revalidate");
-    header("Pragma: public");
-    echo $response->fileContent;
+    if ($response->filePathForStreaming!==null) {
+      if (!is_file($response->filePathForStreaming)) {
+        self::sendErrorResponse("Datei nicht gefunden", 404);
+      }
+      header("Content-Length: " . filesize($response->filePathForStreaming));
+      readfile($response->filePathForStreaming);
+    } else {
+      header("Content-Length: " . \strlen($response->fileContent));
+      header("Cache-Control: no-store, no-cache, must-revalidate");
+      header("Pragma: public");
+      echo $response->fileContent;
+    }
     exit();
   }
   public static function sendErrorResponse(string $message, mixed $code = HTTP_BAD_REQUEST): void {
@@ -180,35 +188,4 @@ class API {
     ]);
     exit(); // Beende die Verarbeitung
   }
-  // private static function sendFileContentResponse(array $fileData): void {
-  //   $contentLength = 0;
-  //   if (isset($fileData["fileContent"])) {
-  //     $contentLength = strlen($fileData["fileContent"]);
-  //   } else {
-  //     $contentLength = filesize($fileData["filePath"]);
-  //   }
-
-  //   if (!$contentLength) {
-  //     self::sendErrorResponse("Keine Datei-Inhalte vorhanden.", HTTP_NOT_FOUND);
-  //   }
-  //   $mimeType = $fileData["mimeType"];
-
-  //   header("Access-Control-Expose-Headers: Content-Disposition");
-  //   header("Content-Description: File Transfer");
-  //   header("Content-Type: " . $mimeType);
-  //   header('Content-Disposition: attachment; filename="' . $fileData["fileName"] . '"');
-  //   header("Content-Length: " . $contentLength);
-  //   header("Cache-Control: no-store, no-cache, must-revalidate");
-  //   header("Pragma: public");
-  //   // Datei-Inhalte ausgeben
-  //   if (isset($fileData["fileContent"])) {
-  //     echo $fileData["fileContent"];
-  //   } else {
-  //     readfile($fileData["filePath"]);
-  //   }
-  //   if (isset($fileData["delete"]) && $fileData["delete"]) {
-  //     unlink($fileData["filePath"]);
-  //   }
-  //   exit();
-  // }
 }
