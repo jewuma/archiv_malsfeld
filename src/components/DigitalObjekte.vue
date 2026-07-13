@@ -39,13 +39,14 @@
     </div>
     <div class="row">
       <div class="col-6">
-        <TreeView :tree="eingang" @select="pfadGewählt" title="Posteingang" selectable
-          @file-selected="gewaehlteDateien" />
+        <TreeView :tree="eingang" @select="pfadGewaehlt" title="Posteingang" selectable @file-selected="fileSelected"
+          @move-up="moveUp" @move-down="moveDown" :show-search="false" />
       </div>
       <div class="col-6">
-        <TreeView :tree="tree" @select="pfadGewählt" title="Zielverzeichnis" />
+        <TreeView :tree="tree" @select="pfadGewaehlt" title="Zielverzeichnis" />
       </div>
     </div>
+    <div class="row"><button @click="saveFiles">zusammenfassen und speichern</button></div>
   </div>
 </template>
 <script>
@@ -62,9 +63,9 @@ export default {
   },
   data() {
     return {
+      eingang: [],
       tree: [],
-      selectedFiles: [],
-
+      selectedFiles: {},
     }
   },
   emits: ["update:modelValue"],
@@ -79,8 +80,9 @@ export default {
     }
   },
   async created() {
-    const treeResposne = await this.$axios.get("/ArchivFiles/getTree")
-    this.tree = treeResposne.data.data
+    const treeResponse = await this.$axios.post("/ArchivFiles/getTree", { "directory": "" })
+    this.tree = treeResponse.data.data
+    this.getEingang()
   },
   methods: {
     addFiles(fileList) {
@@ -93,8 +95,29 @@ export default {
       }));
       this.lokal = [...this.lokal, ...neueDateien];
     },
-    dateiGewaehlt(dateien) {
-      this.selectedFiles = dateien
+    collectSelected(nodes, result = []) {
+      for (const node of nodes) {
+        if (
+          node.type === "file" &&
+          Object.prototype.hasOwnProperty.call(this.selectedFiles, node.path)
+        ) {
+          result.push(node.path);
+        }
+
+        if (node.children) {
+          this.collectSelected(node.children, result);
+        }
+      }
+
+      return result;
+    },
+    fileSelected(path, isSelected) {
+      console.log("Datei gewählt:", path, isSelected)
+      if (isSelected) {
+        this.selectedFiles[path] = ""
+      } else {
+        delete this.selectedFiles[path];
+      }
     },
     dateienAuswaehlen(event) {
       this.addFiles(event.target.files);
@@ -114,9 +137,65 @@ export default {
       if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
       return (bytes / (1024 * 1024)).toFixed(1) + " MB";
     },
-    pfadGewählt(node) {
+    async getEingang() {
+      const eingangResponse = await this.$axios.post("/ArchivFiles/getTree", { "directory": "archiveingang", "withFiles": true })
+      this.eingang = eingangResponse.data.data
+    },
+    getMovableSiblings(siblings) {
+      return siblings.filter(n => n.type === 'file');
+    },
+    moveUp(node, siblings) {
+      const files = siblings.filter(n => n.type === 'file');
+
+      const fileIndex = files.indexOf(node);
+
+      if (fileIndex <= 0) {
+        return;
+      }
+
+      const previousFile = files[fileIndex - 1];
+
+      const nodeIndex = siblings.indexOf(node);
+      const previousIndex = siblings.indexOf(previousFile);
+
+      [siblings[nodeIndex], siblings[previousIndex]] =
+        [siblings[previousIndex], siblings[nodeIndex]];
+
+      this.updateMoveFlags(siblings);
+    },
+    moveDown(node, siblings) {
+      const files = siblings.filter(n => n.type === 'file');
+
+      const fileIndex = files.indexOf(node);
+
+      if (fileIndex < 0 || fileIndex === files.length) {
+        return;
+      }
+
+      const nextFile = files[fileIndex + 1];
+
+      const nodeIndex = siblings.indexOf(node);
+      const nextIndex = siblings.indexOf(nextFile);
+
+      [siblings[nodeIndex], siblings[nextIndex]] =
+        [siblings[nextIndex], siblings[nodeIndex]];
+
+      this.updateMoveFlags(siblings);
+    },
+    pfadGewaehlt(node) {
       console.log(node);
       this.zielPfad = node;
+    },
+    saveFiles() {
+      const result = this.collectSelected(this.eingang)
+      console.log(result);
+    },
+    updateMoveFlags(siblings) {
+      const files = this.getMovableSiblings(siblings);
+      files.forEach((file, index) => {
+        file.canMoveUp = index > 0;
+        file.canMoveDown = index < files.length - 1;
+      });
     }
   }
 };

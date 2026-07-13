@@ -197,7 +197,7 @@ export default {
           try {
             const response = await this.$axios.get(field.options);
             field.options = response.data.data || [];
-          } catch (error) {
+          } catch {
             field.options = []; // Leere Optionen setzen, falls der Request fehlschlägt
           }
         }
@@ -226,10 +226,10 @@ export default {
         this.newEntry();
       });
     },
-    async openPdf(field, ev) {
+    async openPdf(field) {
       openPdf(field.value, this.$axios);
     },
-    removePdf(field, ev) {
+    removePdf(field) {
       field.value = "";
       field.action = "delete";
       field.valueType = null;

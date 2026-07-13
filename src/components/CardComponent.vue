@@ -8,8 +8,6 @@
           {{ title }}
         </h4>
         <div class="d-flex align-items-center gap-2">
-
-          <!-- Submenu -->
           <div v-if="submenu.length" class="dropdown">
             <button class="btn btn-info btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" @mousedown.stop>
               Menü
@@ -43,50 +41,10 @@
         <div v-if="fields.length > 0" class="mt-3">
           <div class="row">
 
-            <!-- Tabelle -->
-            <div :class="files !== null ? 'col-md-9' : 'col-12'">
+            <!-- Tabelle -->file
+            <div class="col-12">
               <TableComponent ref="childTable" :fields="fields" :filterOptions="filterOptions" :table-data="tableData"
-                :highlight="highlight" @row-selected="rowSelected" @edit="rowEdited" @file-dropped="fileDropped"
-                @action="onAction" />
-            </div>
-
-            <!-- File Liste -->
-            <div v-if="files !== null" class="col-md-3">
-              <div class="d-flex justify-content-between icon-div">
-                <div class="text-center flex-fill">
-                  <i class="bi bi-folder2 file-icons" @click="$emit('select-folder', 'belege')"
-                    @drop="onDrop($event, 'belege')" @dragover="onDragOver"></i>
-                  <p class="mb-0">Monatsbelege</p>
-                </div>
-
-                <div class="text-center flex-fill">
-                  <i class="bi bi-folder2 file-icons" @click="$emit('select-folder', 'dauerbelege')"
-                    @drop="onDrop($event, 'dauerbelege')" @dragover="onDragOver"></i>
-                  <p class="mb-0">Dauerbelege</p>
-                </div>
-
-                <div class="text-center flex-fill">
-                  <i class="bi bi-recycle file-icons" @drop="onDrop($event, 'trash')" @dragover="onDragOver"></i>
-                  <p class="mb-0">Müll</p>
-                </div>
-                <div class="text-center flex-fill" @click="$emit('refresh-files')">
-                  <i class="bi bi-arrow-clockwise file-icons"></i>
-                  <p class="mb-0">Neu laden</p>
-                </div>
-              </div>
-              <div class="card h-100">
-                <div class="card-body p-2">
-                  <ul class="list-group list-group-flush">
-                    <li v-for="file in sortedFiles" :key="file" class="filename list-group-item" draggable="true"
-                      @dragover="onDragOver" @dragstart="onDragStart($event, 'fileList', file)"
-                      @drop="onDrop($event, 'fileList')" @click="$emit('file-clicked', file)">
-                      <span class="text-truncate">
-                        {{ file }}
-                      </span>
-                    </li>
-                  </ul>
-                </div>
-              </div>
+                :highlight="highlight" @row-selected="rowSelected" @edit="rowEdited" @action="onAction" />
             </div>
           </div>
         </div>
@@ -115,10 +73,6 @@ export default {
     fields: {
       type: Array,
       required: true,
-    },
-    files: {
-      type: Array,
-      default: null
     },
     filterOptions: {
       type: Array,
@@ -218,23 +172,6 @@ export default {
               : ""
       };
     },
-    sortedFiles() {
-      return [...this.files].sort((a, b) => {
-        const partsA = a.split('_');
-        const partsB = b.split('_');
-        const euroAmountA = partsA[0];
-        const euroAmountB = partsB[0];
-        const centA = partsA.slice(1).join('_');
-        const centB = partsB.slice(1).join('_');
-        const paddedEuroAmountA = euroAmountA.padStart(4, '\u00A0'); // Use Unicode character for non-breaking space
-        const paddedEuroAmountB = euroAmountB.padStart(4, '\u00A0');
-        const paddedCentA = centA.padStart(2, '0');
-        const paddedCentB = centB.padStart(2, '0');
-        const formattedAmountA = paddedEuroAmountA + '_' + paddedCentA;
-        const formattedAmountB = paddedEuroAmountB + '_' + paddedCentB;
-        return parseFloat(formattedAmountA) - parseFloat(formattedAmountB);
-      })
-    }
   },
   methods: {
     cancel() {
@@ -247,61 +184,17 @@ export default {
     focusChildInput(itemId, fieldName) {
       this.$refs.childTable.focusInput(itemId, fieldName); // Methode der Kindkomponente aufrufen
     },
-    fileDropped({ source, file, target }) {
-      this.$emit("file-dropped", { source, file, target })
-    },
     menuSelected(entry) {
       this.$emit("menu-selected", entry.value);
     },
     onAction(event) {
       this.$emit('action', event)
     },
-    onDragOver(event) {
-      event.preventDefault()
-    },
-    onDrop(event, target) {
-      const data = event.dataTransfer.getData("application/json")
-      if (!data) return
-      let payload
-      try {
-        payload = JSON.parse(data)
-      } catch {
-        return
-      }
-      this.$emit("file-dropped", { source: payload.source, file: payload.file, target })
-    },
-    onDragStart(event, source, file) {
-      event.dataTransfer.effectAllowed = "move"
-      event.dataTransfer.setData("application/json", JSON.stringify({ source, file }))
-    },
     rowSelected(row) {
       this.$emit("row-selected", row);
     },
     rowEdited(rowInfo) {
       this.$emit("edit", rowInfo);
-    },
-    startDrag(e) {
-      if (!this.showAsModal) return
-
-      this.dragging = true
-      this.offsetX = e.clientX - this.posX
-      this.offsetY = e.clientY - this.posY
-
-      document.addEventListener("mousemove", this.onDrag)
-      document.addEventListener("mouseup", this.stopDrag)
-    },
-
-    onDrag(e) {
-      if (!this.dragging) return
-
-      this.posX = e.clientX - this.offsetX
-      this.posY = e.clientY - this.offsetY
-    },
-
-    stopDrag() {
-      this.dragging = false
-      document.removeEventListener("mousemove", this.onDrag)
-      document.removeEventListener("mouseup", this.stopDrag)
     },
   },
 };

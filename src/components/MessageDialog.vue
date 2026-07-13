@@ -1,6 +1,6 @@
 <template>
   <div class="modal" tabindex="-1" style="display: block; background-color: rgba(0, 0, 0, 0.5)">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-xl">
       <div class="modal-content">
         <div class="modal-header bg-primary text-white">
           <h5 class="modal-title">

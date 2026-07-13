@@ -1,15 +1,10 @@
 <template>
-  <StammdatenForm
-    title="Benutzer verwalten"
-    :fields="fields"
-    :api-routes="{
-      get: '/Users/getAll',
-      save: '/Users/save',
-      delete: '/Users/delete',
-      update: '/Users/update',
-    }"
-    :pre-save-check="validateFields"
-  />
+  <StammdatenForm title="Benutzer verwalten" :fields="fields" :api-routes="{
+    get: '/Users/getAll',
+    save: '/Users/save',
+    delete: '/Users/delete',
+    update: '/Users/update',
+  }" :pre-save-check="validateFields" />
 </template>
 <script>
 import StammdatenForm from "./StammdatenForm.vue";
@@ -24,24 +19,17 @@ export default {
         { name: "name", label: "Name", type: "text", value: "", required: true },
         { name: "password", label: "Passwort", type: "password", value: "", required: true, hidden: true },
         { name: "password_repeat", label: "Passwortwiederholung", type: "password", value: "", required: true, hidden: true },
+
         {
-          name: "staff_id",
-          label: "PlandayMitarbeiter",
-          type: "select",
-          options: "/Users/getPlandayUsers",
-          value: "",
-          required: false,
-        },
-        { name: "position",
+          name: "position",
           label: "Position",
           type: "select",
           options: [
             { display: "Administrator", value: 1 },
-            { display: "Büro/Verwaltung", value: 2 },
-            { display: "Einsatzplanung", value: 3 },
-            { display: "Haushaltshilfe", value: 4 },
+            { display: "Normaler Benutzer", value: 2 },
           ],
-          required: true },
+          required: true
+        },
       ],
     };
   },

@@ -22,9 +22,15 @@
             </router-link>
           </li>
           <li class="nav-item">
+            <router-link class="nav-link text-white fw-semibold" to="/archivEingang">
+              <i class="bi bi-receipt me-2"></i>
+              Archiveingang
+            </router-link>
+          </li>
+          <li class="nav-item">
             <router-link class="nav-link text-white fw-semibold" to="/archivObjekt">
               <i class="bi bi-receipt me-2"></i>
-              Archiv-Artikel verwalten
+              Archivbearbeitung
             </router-link>
           </li>
           <li class="nav-item">
@@ -48,19 +54,19 @@
                 </router-link>
               </li>
               <li>
-                <router-link to="/schlagworte" class="dropdown-item">
+                <router-link to="/schlagwortManager" class="dropdown-item">
                   <i class="bi bi-person-fill me-2"></i>
                   Schlagworte verwalten
                 </router-link>
               </li>
               <li>
-                <router-link to="/objekttypen" class="dropdown-item">
+                <router-link to="/objekttypenManager" class="dropdown-item">
                   <i class="bi bi-person-fill me-2"></i>
                   Objekttypen verwalten
                 </router-link>
               </li>
               <li>
-                <router-link to="/quellen" class="dropdown-item">
+                <router-link to="/quellenManager" class="dropdown-item">
                   <i class="bi bi-person-fill me-2"></i>
                   Quellen verwalten
                 </router-link>
@@ -75,12 +81,12 @@
               Einstellungen
             </a>
             <ul class="dropdown-menu" aria-labelledby="settingsDropdown">
-              <li v-if="hasAdminRigths">
+              <!-- <li v-if="hasAdminRigths">
                 <router-link to="/SettingsDialog" class="dropdown-item">
                   <i class="bi bi-gear-fill settings-icon me-2"></i>
                   Allgemeine Einstellungen
                 </router-link>
-              </li>
+              </li> -->
               <li class="nav-item">
                 <router-link to="/changePassword" class="dropdown-item">
                   <i class="bi-key-fill me-2"></i>

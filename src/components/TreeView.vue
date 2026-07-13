@@ -2,8 +2,10 @@
   <h5>{{ title }}</h5>
   <div class="treeview">
     <input v-if="showSearch" class="form-control mb-2" v-model="search" placeholder="Suchen...">
-    <TreeNode v-for="node in filteredTree" :key="node.id" :node="node" :search="search" :selectable="selectable"
-      @select="selectNode" @file-selected="fileSelected" />
+    <TreeNode v-for="node in filteredTree" :key="node.path" :node="node" :siblings="filteredTree" :search="search"
+      :selectable="selectable" @select="selectNode" @file-selected="fileSelected"
+      @load-children="$emit('load-children', $event)" @preview="$emit('preview', $event)" @move-up="moveUp"
+      @move-down="moveDown" />
   </div>
 </template>
 
@@ -15,7 +17,14 @@ import TreeNode from "./TreeNode.vue";
 export default {
 
   name: "TreeView",
-  emits: ["file-selected", "select"],
+  emits: [
+    "file-selected",
+    "select",
+    "load-children",
+    "preview",
+    "move-up",
+    "move-down"
+  ],
   components: {
     TreeNode
   },
@@ -55,6 +64,17 @@ export default {
     }
   },
   methods: {
+    canMoveUp(node) {
+      if (node.type !== "file" || node.sort === 0) return false;
+      return true;
+    },
+    canMoveDown(node) {
+      if (node.type !== "file") return false;
+      const fileNodes = this.tree.filter(singleNode => {
+        return singleNode.path === node.path && singleNode.type === "file";
+      });
+      return node.sort < fileNodes.length;
+    },
     filterNodes(nodes) {
       const result = [];
       nodes.forEach(node => {
@@ -75,11 +95,17 @@ export default {
       });
       return result;
     },
+    moveUp(node, siblings) {
+      this.$emit("move-up", node, siblings)
+    },
+    moveDown(node, siblings) {
+      this.$emit("move-down", node, siblings)
+    },
     selectNode(node) {
       this.$emit("select", node);
     },
-    fileSelected(files) {
-      this.$emit("file-selected", files);
+    fileSelected(path, isSelected) {
+      this.$emit("file-selected", path, isSelected);
     }
   }
 };

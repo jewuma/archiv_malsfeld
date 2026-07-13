@@ -5,7 +5,6 @@
         <!-- Kopfzeile -->
         <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
           <h3>Passwort ändern</h3>
-          <ReducedMenu />
         </div>
 
         <!-- Formularfelder -->
@@ -16,13 +15,8 @@
                 Aktuelles Passwort
               </label>
               <div class="col-8">
-                <input
-                  id="currentPassword"
-                  v-model="currentPassword"
-                  type="password"
-                  class="form-control form-control-sm"
-                  required
-                >
+                <input id="currentPassword" v-model="currentPassword" type="password"
+                  class="form-control form-control-sm" required>
               </div>
             </div>
 
@@ -31,13 +25,8 @@
                 Neues Passwort
               </label>
               <div class="col-8">
-                <input
-                  id="newPassword"
-                  v-model="newPassword"
-                  type="password"
-                  class="form-control form-control-sm"
-                  required
-                >
+                <input id="newPassword" v-model="newPassword" type="password" class="form-control form-control-sm"
+                  required>
               </div>
             </div>
 
@@ -46,13 +35,8 @@
                 Passwort bestätigen
               </label>
               <div class="col-8">
-                <input
-                  id="confirmPassword"
-                  v-model="confirmPassword"
-                  type="password"
-                  class="form-control form-control-sm"
-                  required
-                >
+                <input id="confirmPassword" v-model="confirmPassword" type="password"
+                  class="form-control form-control-sm" required>
               </div>
             </div>
           </div>
@@ -71,7 +55,6 @@
 </template>
 
 <script>
-import ReducedMenu from "./ReducedMenu.vue"
 export default {
   data() {
     return {
@@ -79,9 +62,6 @@ export default {
       newPassword: '',
       confirmPassword: '',
     };
-  },
-  components: {
-    ReducedMenu,
   },
   methods: {
     async changePassword() {
