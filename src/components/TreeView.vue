@@ -1,10 +1,17 @@
 <template>
   <h5>{{ title }}</h5>
   <div class="treeview">
-    <input v-if="showSearch" class="form-control mb-2" v-model="search" placeholder="Suchen...">
+    <div class="d-flex align-items-center mb-2">
+      <input v-if="showSearch" class="form-control me-2" v-model="search" placeholder="Suchen...">
+
+      <button type="button" class="btn btn-info" @click="$emit('refresh-tree')">
+        <i class="bi bi-arrow-clockwise me-1"></i>
+        Aktualisieren
+      </button>
+    </div>
     <TreeNode v-for="node in filteredTree" :key="node.path" :node="node" :siblings="filteredTree" :search="search"
       :selectable="selectable" @select="selectNode" @file-selected="fileSelected"
-      @load-children="$emit('load-children', $event)" @preview="$emit('preview', $event)" @move-up="moveUp"
+      @load-children="$emit('load-children', $event)" @preview="showPreview($event)" @move-up="moveUp"
       @move-down="moveDown" />
   </div>
 </template>
@@ -53,7 +60,7 @@ export default {
   },
   data() {
     return {
-      search: ""
+      search: "",
     }
   },
   computed: {
@@ -75,6 +82,9 @@ export default {
       });
       return node.sort < fileNodes.length;
     },
+    fileSelected(path, isSelected) {
+      this.$emit("file-selected", path, isSelected);
+    },
     filterNodes(nodes) {
       const result = [];
       nodes.forEach(node => {
@@ -95,17 +105,72 @@ export default {
       });
       return result;
     },
+    getMovableSiblings(siblings) {
+      return siblings.filter(n => n.type === 'file');
+    },
     moveUp(node, siblings) {
-      this.$emit("move-up", node, siblings)
+      const files = siblings.filter(n => n.type === 'file');
+
+      const fileIndex = files.indexOf(node);
+
+      if (fileIndex <= 0) {
+        return;
+      }
+
+      const previousFile = files[fileIndex - 1];
+
+      const nodeIndex = siblings.indexOf(node);
+      const previousIndex = siblings.indexOf(previousFile);
+
+      [siblings[nodeIndex], siblings[previousIndex]] =
+        [siblings[previousIndex], siblings[nodeIndex]];
+
+      this.updateMoveFlags(siblings);
     },
     moveDown(node, siblings) {
-      this.$emit("move-down", node, siblings)
+      const files = siblings.filter(n => n.type === 'file');
+
+      const fileIndex = files.indexOf(node);
+
+      if (fileIndex < 0 || fileIndex === files.length) {
+        return;
+      }
+
+      const nextFile = files[fileIndex + 1];
+
+      const nodeIndex = siblings.indexOf(node);
+      const nextIndex = siblings.indexOf(nextFile);
+
+      [siblings[nodeIndex], siblings[nextIndex]] =
+        [siblings[nextIndex], siblings[nodeIndex]];
+
+      this.updateMoveFlags(siblings);
     },
     selectNode(node) {
       this.$emit("select", node);
     },
-    fileSelected(path, isSelected) {
-      this.$emit("file-selected", path, isSelected);
+    async showPreview(node) {
+      const formData = new FormData()
+      formData.append("path", node.path);
+      formData.append("fromInbox", true);
+      this.$axios.post(
+        "/ArchivFiles/getByPath",
+        formData,
+        {
+          responseType: "blob"
+        }
+      ).then(response => {
+        const blob = new Blob([response.data], { type: "application/pdf" });
+        const url = window.URL.createObjectURL(blob);
+        window.open(url, "_blank");
+      })
+    },
+    updateMoveFlags(siblings) {
+      const files = this.getMovableSiblings(siblings);
+      files.forEach((file, index) => {
+        file.canMoveUp = index > 0;
+        file.canMoveDown = index < files.length - 1;
+      });
     }
   }
 };

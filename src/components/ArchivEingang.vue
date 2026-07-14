@@ -8,7 +8,8 @@
             <h5 class="mb-0">Posteingang</h5>
           </div>
           <div class="card-body file-select-color">
-            <TreeView :tree="eingang" title="" :showSearch="true" :selectable="true" @file-selected="fileSelected" />
+            <TreeView :tree="eingang" title="" :showSearch="true" :selectable="true" @file-selected="fileSelected"
+              @refresh-tree="refreshTree" />
           </div>
         </div>
       </div>
@@ -46,20 +47,26 @@
             </div>
 
             <div class="row">
-              <div class="col-4 mb-3">
+              <div class="col-3 mb-3">
                 <label class="form-label">Dokumentdatum</label>
-                <input class="form-control" v-model="dokumentDatum" placeholder="z.B. 13.04.1956 oder 1956">
+                <input class="form-control" v-model="dokumentDatum">
               </div>
-              <div class="col-8 mb-3">
+              <div class="col-9 mb-3">
                 <label class="form-label">Kurztitel</label>
                 <input class="form-control" v-model="kurztitel">
               </div>
             </div>
-
-            <!-- Analogobjekt -->
-            <div class="mb-3">
-              <label class="form-label">Analogobjekt-Nr.</label>
-              <input class="form-control" v-model="analogNummer">
+            <div class="row">
+              <div class="col-3 mb-3">
+                <label class="form-label">Analogobjekt-Nr.</label>
+                <input class="form-control" v-model="analogNummer" @keyup="analogObjektExists">
+              </div>
+              <div class="col-9 mb-3">
+                <label class="form-label">Analogobjekt</label>
+                <button v-if="analogTitel === '' && analogNummer.length > 4" class="form-control btn btn-success"
+                  @click="showAnalogObjektAnlegen = true">erstellen</button>
+                <input v-else type="text" class="form-control" disabled :value="analogTitel">
+              </div>
             </div>
 
             <!-- Gesperrt -->
@@ -78,22 +85,18 @@
             </div>
             <div class="mb-3">
               <label class="form-label">Speicherpfad</label>
-              <span class="badge bg-secondary">{{ speicherpfad }}</span>
+              <div class="row">
+                <span class="badge bg-secondary">{{ speicherpfad }}</span>
+              </div>
             </div>
-
             <hr>
-
             <div class="d-grid gap-2">
-
-              <button class="btn btn-primary" :disabled="selectedFiles.length < 2" @click="mergeAndSave">
-                Zusammenfassen und speichern
-              </button>
-
-              <button class="btn btn-success" @click="saveAnalogObject">
-                Analogobjekt speichern
-              </button>
-
-              <button class="btn btn-outline-danger" :disabled="selectedFiles.length == 0" @click="deleteSelected">
+              <button v-if="Object.keys(selectedFiles).length > 1" class="btn btn-primary"
+                @click="mergeAndSave">Zusammenfassen und speichern</button>
+              <button v-else class="btn btn-primary" :disabled="Object.keys(selectedFiles).length === 0"
+                @click="Save">Speichern</button>
+              <button class="btn btn-outline-danger" :disabled="Object.keys(selectedFiles).length === 0"
+                @click="deleteSelected">
                 Ausgewählte löschen
               </button>
 
@@ -109,8 +112,12 @@
 
     <!-- Modal zur Auswahl des Speicherpfades -->
     <StoragePathDialog v-if="showStoragDialog" ref="storageDialog" @path-selected="storagePathSelected"
-      :base-path="storeBasePath" @cancel="showStoragDialog = false" />
-
+      :base-path="storeBasePath" @cancel="showStoragDialog = false" @refresh-tree="refreshTree" />
+    <AnalogObjektAnlegen v-if="showAnalogObjektAnlegen" :archiv-id="analogNummer"
+      @cancel="showAnalogObjektAnlegen = false" />
+    <MessageDialog v-if="showDeleteDialog" title="Ausgewählte Dateien wirklich löschen?"
+      message="Sollen die gewählten Dateien wirklich gelöscht werden?" @confirm="deleteConfirmed"
+      @cancel="showDeleteDialog = false" confirm-text="Löschen" />
   </CardComponent>
 </template>
 
@@ -118,69 +125,57 @@
 import CardComponent from "./CardComponent.vue";
 import TreeView from "./TreeView.vue";
 import StoragePathDialog from "@/components/StoragePathDialog.vue";
-
+import AnalogObjektAnlegen from "./AnalogObjektAnlegen.vue";
+import MessageDialog from "./MessageDialog.vue";
 export default {
 
   components: {
+    AnalogObjektAnlegen,
     CardComponent,
+    MessageDialog,
     StoragePathDialog,
     TreeView,
   },
 
   data() {
     return {
-
-      eingang: [],
-
-      selectedFiles: [],
-
-      orte: [],
-
-      ort: "",
       abJahr: "",
+      analogNummer: "",
+      analogTitel: "",
       bisJahr: "",
       dokumentDatum: "",
-      kurztitel: "",
-      analogNummer: "",
+      eingang: [],
       gesperrt: false,
-      storeBasePath: "",
+      kurztitel: "",
+      ort: "",
+      orte: [],
+      selectedFiles: {},
       selectedSpeicherpfad: "",
+      showAnalogObjektAnlegen: false,
+      showDeleteDialog: false,
       showStoragDialog: false,
+      storeBasePath: "",
     };
   },
   computed: {
 
     speicherpfad() {
-
       let parts = [];
-
-      // Gesperrt
       if (this.gesperrt)
         parts.push("ZYX");
-
-      // Dokumentdatum oder Zeitraum
       if (this.dokumentDatum) {
-
         parts.push(this.formatDokumentDatum(this.dokumentDatum));
-
       } else if (this.abJahr || this.bisJahr) {
-
         let von = this.abJahr || "0000";
         let bis = this.bisJahr || von;
-
         parts.push(`${von}bis${bis}`);
       }
-
-      // Kurztitel
       if (this.kurztitel) {
         parts.push(this.makeFilename(this.kurztitel));
       }
-
-      // Analognummer
       if (this.analogNummer) {
         parts.push(this.makeFilename(this.analogNummer));
       }
-
       return this.selectedSpeicherpfad + "/" + parts.join("_") + ".pdf";
     }
 
@@ -188,29 +183,55 @@ export default {
   async created() {
     const orte = await this.$axios.get("/Orte/getAll");
     this.orte = orte.data.data
-    const eingangResponse = await this.$axios.post("/ArchivFiles/getTree", { "directory": "archiveingang", "withFiles": true })
-    this.eingang = eingangResponse.data.data
+    this.refreshTree()
   },
   methods: {
+    async analogObjektExists() {
+      this.analogTitel = ""
+      if (this.analogNummer.length > 4) {
+        const existResponse = await this.$axios.get("/Analogobjekte/getByArchivId/" + this.analogNummer)
+        if (existResponse.data.data.length > 0) {
+          this.analogTitel = existResponse.data.data[0].titel
+        }
+      }
+    },
     chooseStoragePath() {
       const selectedOrt = this.orte.find(ort => { return ort.id === this.ort })
       if (selectedOrt === undefined) this.storeBasePath = ""
       else this.storeBasePath = selectedOrt.name
       this.showStoragDialog = true
     },
-    deleteSelected() {
+    collectSelected(nodes, result = []) {
+      for (const node of nodes) {
+        if (
+          node.type === "file" &&
+          Object.prototype.hasOwnProperty.call(this.selectedFiles, node.path)
+        ) {
+          result.push(node.path);
+        }
 
-    },
-    fileSelected(path, selected) {
-
-      if (selected) {
-        if (!this.selectedFiles.includes(path))
-          this.selectedFiles.push(path);
-      } else {
-        this.selectedFiles =
-          this.selectedFiles.filter(f => f !== path);
+        if (node.children) {
+          this.collectSelected(node.children, result);
+        }
       }
 
+      return result;
+    },
+    async deleteConfirmed() {
+      this.showDeleteDialog = false
+      const filesToDelete = this.collectSelected(this.eingang)
+      await this.$axios.post("/ArchivFiles/deleteMulti", { "files": filesToDelete })
+      this.refreshTree()
+    },
+    deleteSelected() {
+      this.showDeleteDialog = true
+    },
+    fileSelected(path, isSelected) {
+      if (isSelected) {
+        this.selectedFiles[path] = ""
+      } else {
+        delete this.selectedFiles[path];
+      }
     },
     formatDokumentDatum(value) {
 
@@ -245,8 +266,6 @@ export default {
     makeFilename(text) {
 
       return text
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
         .replace(/ä/g, "ae")
         .replace(/ö/g, "oe")
         .replace(/ü/g, "ue")
@@ -254,13 +273,22 @@ export default {
         .replace(/Ö/g, "Oe")
         .replace(/Ü/g, "Ue")
         .replace(/ß/g, "ss")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
         .replace(/[^A-Za-z0-9]/g, "_")
         .replace(/_+/g, "_")
         .replace(/^_+|_+$/g, "");
     },
     mergeAndSave() {
     },
+    async refreshTree() {
+      const eingangResponse = await this.$axios.post("/ArchivFiles/getTree", { "directory": "archiveingang", "withFiles": true })
+      this.eingang = eingangResponse.data.data
+    },
     saveAnalogObject() {
+
+    },
+    save() {
 
     },
     storagePathSelected(path) {

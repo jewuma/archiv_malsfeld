@@ -1,6 +1,6 @@
 <template>
   <div class="modal" tabindex="-1" style="display: block; background-color: rgba(0, 0, 0, 0.5)">
-    <div class="modal-dialog modal-xl">
+    <div :class="['modal-dialog', { 'modal-xl': xl }]">
       <div class="modal-content">
         <div class="modal-header bg-primary text-white">
           <h5 class="modal-title">
@@ -33,6 +33,7 @@
 
 <script>
 export default {
+  name: "MessageDialog",
   props: {
     title: {
       type: String,
@@ -54,6 +55,10 @@ export default {
       type: String,
       default: "",
     },
+    xl: {
+      type: Boolean,
+      default: false,
+    }
   },
   emits: ["confirm", "cancel", "option"],
   methods: {

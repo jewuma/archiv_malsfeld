@@ -1,6 +1,7 @@
 <template>
   <MessageDialog title="Speicherpfad wählen" confirm-text="Pfad übernehmen" cancel-text="Abbruch"
-    :message="selectedPath" @confirm="pathSelected(selectedPath)" @cancel="$emit('cancel')">
+    :message="selectedPath" xl @confirm="pathSelected(selectedPath)" @cancel="$emit('cancel')"
+    @refresh-tree="$emit('refresh-tree')">
     <div class="storage-dialog">
 
       <div class="selected-path">

@@ -7,9 +7,30 @@ use own\ArchivDb;
 use own\Validator;
 class ArchivFiles
 {
-    private $baseDir = __DIR__ . "/../../../archivdateien/";
-    private $inboxDir = __DIR__ . "/../../../archivdateien/archiveingang/";
-    private $modifiedbaseDirLength = "";
+    private string $baseDir = __DIR__ . "/../../../archivdateien/";
+    private string $inboxDir = __DIR__ . "/../../../archivdateien/archiveingang/";
+    private int $modifiedbaseDirLength = 0;
+    private \finfo|bool $finfo;
+    public function __construct()
+    {
+        $this->finfo = finfo_open(FILEINFO_MIME_TYPE);
+    }
+    public function deleteMulti(string $parameters): JsonResponse
+    {
+        $param = Validator::validateJsonAgainstSchema($parameters, ["files" => "array"]);
+        foreach ($param["files"] as $file) {
+            $path = realpath($this->inboxDir . $file);
+            if (!$path) {
+                throw new \Exception("Datei nicht gefunden", 404);
+            } else {
+                $deleteOK = unlink($path);
+                if (!$deleteOK) {
+                    throw new \Exception("Datei " . basename($path) . " konnte nicht gelöscht werden", 500);
+                }
+            }
+        }
+        return new JsonResponse(200, [], "OK");
+    }
     public function get(int $id): FileResponse
     {
         $db = ArchivDb::getDbInstance();
@@ -32,7 +53,23 @@ class ArchivFiles
             $pfad
         );
     }
-
+    public function getByPath($parameters): FileResponse
+    {
+        $param = Validator::validateJsonAgainstSchema($parameters, ["path" => "string", "fromInbox" => "boolean"]);
+        $path = $param["fromInbox"] ? realpath($this->inboxDir . $param["path"]) : realpath($this->baseDir . $param["path"]);
+        if (!$path) {
+            throw new \Exception("Datei existiert nicht");
+        }
+        $dateiname = basename($path);
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        $mimeType = finfo_file($finfo, $path);
+        return new FileResponse(
+            $dateiname,
+            $mimeType,
+            null,
+            $path
+        );
+    }
     public function getTree(string $parameters): JsonResponse
     {
         $param = Validator::validateJsonAgainstSchema(
@@ -62,33 +99,49 @@ class ArchivFiles
         }
 
         natcasesort($entries);
-        $sort = 0;
-        $lastFile = null;
+
+        $directories = [];
+        $files = [];
+
         foreach ($entries as $entry) {
             if ($entry === "." || $entry === "..") {
                 continue;
             }
+
             $fullPath = $path . DIRECTORY_SEPARATOR . $entry;
+
             if (is_dir($fullPath)) {
-                $node["children"][] = $this->buildNode($fullPath, $withFiles);
+                $directories[] = $fullPath;
             } elseif ($withFiles) {
-                $finfo = finfo_open(FILEINFO_MIME_TYPE);
-                $canMoveUp = ($sort !== 0);
-                $mimeType = finfo_file($finfo, $fullPath);
-                $node["children"][] = [
-                    "name" => $entry,
-                    "path" => substr($fullPath, $this->modifiedbaseDirLength),
-                    "type" => "file",
-                    "mimeType" => $mimeType,
-                    "sort" => $sort++,
-                    "canMoveUp" => $canMoveUp,
-                    "canMoveDown" => true
-                ];
-                $lastFile = count($node["children"]);
+                $files[] = $fullPath;
             }
         }
-        if ($lastFile)
-            $node["children"][$lastFile - 1]["canMoveDown"] = false;
+
+        // Erst Verzeichnisse
+        foreach ($directories as $dir) {
+            $node["children"][] = $this->buildNode($dir, $withFiles);
+        }
+
+        // Dann Dateien
+        $sort = 0;
+        $fileCount = count($files);
+
+        foreach ($files as $file) {
+            $mimeType = finfo_file($this->finfo, $file);
+
+            $node["children"][] = [
+                "name" => basename($file),
+                "path" => substr($file, $this->modifiedbaseDirLength),
+                "type" => "file",
+                "mimeType" => $mimeType,
+                "sort" => $sort,
+                "canMoveUp" => ($sort > 0),
+                "canMoveDown" => ($sort < $fileCount - 1)
+            ];
+
+            $sort++;
+        }
+
         return $node;
     }
     public function implodeFiles($parameters)
