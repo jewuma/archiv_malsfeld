@@ -23,7 +23,7 @@
             <!-- Ort -->
             <div class="mb-3">
               <label class="form-label">Ort</label>
-              <select class="form-select" v-model="ort">
+              <select class="form-select" v-model="ort_id" @change="selectedSpeicherpfad = ''; storeBasePath = ''">
                 <option value="">Bitte wählen...</option>
                 <option v-for="o in orte" :key="o.id" :value="o.id">
                   {{ o.name }}
@@ -91,23 +91,19 @@
             </div>
             <hr>
             <div class="d-grid gap-2">
-              <button v-if="Object.keys(selectedFiles).length > 1" class="btn btn-primary"
-                @click="mergeAndSave">Zusammenfassen und speichern</button>
-              <button v-else class="btn btn-primary" :disabled="Object.keys(selectedFiles).length === 0"
-                @click="Save">Speichern</button>
+              <button v-if="Object.keys(selectedFiles).length > 1" class="btn btn-primary" :disabled="!pfadSelected"
+                @click="save">Zusammenfassen
+                und speichern</button>
+              <button v-else class="btn btn-primary"
+                :disabled="Object.keys(selectedFiles).length === 0 || !pfadSelected" @click="save">Speichern</button>
               <button class="btn btn-outline-danger" :disabled="Object.keys(selectedFiles).length === 0"
                 @click="deleteSelected">
                 Ausgewählte löschen
               </button>
-
             </div>
-
           </div>
-
         </div>
-
       </div>
-
     </div>
 
     <!-- Modal zur Auswahl des Speicherpfades -->
@@ -147,7 +143,7 @@ export default {
       eingang: [],
       gesperrt: false,
       kurztitel: "",
-      ort: "",
+      ort_id: 0,
       orte: [],
       selectedFiles: {},
       selectedSpeicherpfad: "",
@@ -176,9 +172,15 @@ export default {
       if (this.analogNummer) {
         parts.push(this.makeFilename(this.analogNummer));
       }
-      return this.selectedSpeicherpfad + "/" + parts.join("_") + ".pdf";
+      if (this.ort_id !== 0) {
+        const ortsname = this.orte.find(ort => { return ort.id === this.ort_id })?.name
+        parts.push(ortsname.substr(0, 2))
+      }
+      return this.storeBasePath + this.selectedSpeicherpfad + "/" + parts.join("_") + ".pdf";
+    },
+    pfadSelected() {
+      return (this.storeBasePath + this.selectedSpeicherpfad).split("/").length > 1 && this.kurztitel.length > 3
     }
-
   },
   async created() {
     const orte = await this.$axios.get("/Orte/getAll");
@@ -196,9 +198,9 @@ export default {
       }
     },
     chooseStoragePath() {
-      const selectedOrt = this.orte.find(ort => { return ort.id === this.ort })
+      const selectedOrt = this.orte.find(ort => { return ort.id === this.ort_id })
       if (selectedOrt === undefined) this.storeBasePath = ""
-      else this.storeBasePath = selectedOrt.name
+      else this.storeBasePath = selectedOrt.name + "/"
       this.showStoragDialog = true
     },
     collectSelected(nodes, result = []) {
@@ -234,33 +236,22 @@ export default {
       }
     },
     formatDokumentDatum(value) {
-
       value = value.trim();
-
       let m;
-
       if ((m = value.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/))) {
-
         let tag = m[1].padStart(2, "0");
         let monat = m[2].padStart(2, "0");
         let jahr = m[3];
-
         return `${jahr}_${monat}${tag}`;
       }
-
       if ((m = value.match(/^(\d{1,2})\.(\d{4})$/))) {
-
         let monat = m[1].padStart(2, "0");
         let jahr = m[2];
-
         return `${jahr}_${monat}00`;
       }
-
       if ((m = value.match(/^(\d{4})$/))) {
-
         return `${m[1]}_0000`;
       }
-
       return value;
     },
     makeFilename(text) {
@@ -279,8 +270,6 @@ export default {
         .replace(/_+/g, "_")
         .replace(/^_+|_+$/g, "");
     },
-    mergeAndSave() {
-    },
     async refreshTree() {
       const eingangResponse = await this.$axios.post("/ArchivFiles/getTree", { "directory": "archiveingang", "withFiles": true })
       this.eingang = eingangResponse.data.data
@@ -288,11 +277,21 @@ export default {
     saveAnalogObject() {
 
     },
-    save() {
-
+    async save() {
+      const selectedFiles = this.collectSelected(this.eingang)
+      await this.$axios.post("/ArchivFiles/saveFiles", {
+        "files": selectedFiles,
+        "targetPath": this.storeBasePath + this.selectedSpeicherpfad,
+        "targetFilename": this.speicherpfad.split('/').pop()
+      })
+      if (selectedFiles.length === 1) {
+        this.$sendMsg(false, "Datei gespeichert")
+      } else {
+        this.$sendMsg(false, "Dateien gespeichert")
+      }
+      this.refreshTree()
     },
     storagePathSelected(path) {
-      console.log("hoho", path)
       this.selectedSpeicherpfad = path
       this.showStoragDialog = false
     },

@@ -30,7 +30,8 @@ export default {
     "load-children",
     "preview",
     "move-up",
-    "move-down"
+    "move-down",
+    "refresh-tree"
   ],
   components: {
     TreeNode

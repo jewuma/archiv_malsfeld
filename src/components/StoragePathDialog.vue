@@ -1,7 +1,7 @@
 <template>
   <MessageDialog title="Speicherpfad wählen" confirm-text="Pfad übernehmen" cancel-text="Abbruch"
     :message="selectedPath" xl @confirm="pathSelected(selectedPath)" @cancel="$emit('cancel')"
-    @refresh-tree="$emit('refresh-tree')">
+    @refresh-tree="refreshTree">
     <div class="storage-dialog">
 
       <div class="selected-path">
@@ -38,15 +38,19 @@ export default {
     }
   },
   async created() {
-    const treeResponse = await this.$axios.post("/ArchivFiles/getTree", { "directory": this.basePath })
-    this.tree = treeResponse.data.data
+    this.refreshTree()
   },
   methods: {
+    async refreshTree() {
+      const treeResponse = await this.$axios.post("/ArchivFiles/getTree", { "directory": this.basePath })
+      this.tree = treeResponse.data.data
+    },
     selectNode(node) {
       this.selectedPath = node.path
     },
     pathSelected(path) {
       this.$emit("path-selected", path)
+      console.log(path)
     }
   }
 }

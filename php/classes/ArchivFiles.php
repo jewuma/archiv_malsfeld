@@ -144,10 +144,12 @@ class ArchivFiles
 
         return $node;
     }
-    public function implodeFiles($parameters)
+    public function saveFiles($parameters)
     {
         $param = Validator::validateJsonAgainstSchema($parameters, [
-            "files" => "array"
+            "files" => "array",
+            "targetPath" => "string",
+            "targetFilename" => "string"
         ]);
 
         $files = $param["files"];
@@ -161,41 +163,53 @@ class ArchivFiles
         $inputFiles = [];
 
         foreach ($files as $file) {
-            // Hier ggf. deine eigene Prüfung gegen das Archiv-Verzeichnis einbauen
-            if (!file_exists($this->inboxDir . $file)) {
-                return new JsonResponse(404, [
-                    "error" => "Datei nicht gefunden: " . $file
-                ]);
+            $path = realpath($this->inboxDir . $file);
+            if (!$path) {
+                throw new \Exception("Datei nicht gefunden", 404);
             }
-
-            $inputFiles[] = $this->inboxDir . escapeshellarg($file);
+            $inputFiles[] = $path;
         }
-
-        // Zieldatei erzeugen
-        $outputDir = sys_get_temp_dir();
-        $newFilename = $outputDir . "/zusammenfassung_" . uniqid() . ".pdf";
-
+        if (count($inputFiles) === 0) {
+            throw new \Exception("Keine Quelldateien übergeben", 400);
+        }
+        $targetPath = realpath($this->baseDir . $param["targetPath"]);
+        if (!is_dir($targetPath)) {
+            throw new \Exception("Zielpafd nicht vorhanden", 404);
+        }
+        if (substr($targetPath, -1) !== DIRECTORY_SEPARATOR)
+            $targetPath .= DIRECTORY_SEPARATOR;
+        $testName = basename($targetPath . $param["targetFilename"]);
+        if ($testName !== $param["targetFilename"]) {
+            throw new \Exception("Ungültiger Dateiname", 400);
+        }
+        $targetFile = $targetPath . $param["targetFilename"];
+        if (file_exists($targetFile)) {
+            throw new \Exception("Datei existiert bereits", 400);
+        }
         /*
          * qpdf Syntax:
          * qpdf --empty --pages file1.pdf file2.pdf -- output.pdf
          */
-        $command = sprintf(
-            "qpdf --empty --pages %s -- %s 2>&1",
-            implode(" ", $inputFiles),
-            escapeshellarg($newFilename)
-        );
-
-        exec($command, $output, $returnCode);
-
-        if ($returnCode !== 0) {
-            return new JsonResponse(500, [
-                "error" => "PDF-Zusammenführung fehlgeschlagen",
-                "details" => $output
-            ]);
+        if (count($inputFiles) === 1) {
+            if (!rename($inputFiles[0], $targetFile))
+                throw new \Exception("Speichern fehlgeschlagen");
+        } else {
+            $command = sprintf(
+                "qpdf --warning-exit-0 --empty --pages %s -- %s 2>&1",
+                implode(" ", $inputFiles),
+                escapeshellarg($targetFile)
+            );
+            exec($command, $output, $returnCode);
+            if ($returnCode !== 0) {
+                return new JsonResponse(500, [
+                    "error" => "PDF-Zusammenführung fehlgeschlagen",
+                    "details" => $output
+                ]);
+            }
+            foreach ($inputFiles as $file) {
+                unlink($file);
+            }
         }
-
-        return new JsonResponse(200, [
-            "file" => $newFilename
-        ]);
+        return new JsonResponse(200, ["file" => $targetFile]);
     }
 }

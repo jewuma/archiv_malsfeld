@@ -1,0 +1,27 @@
+Ablauf einer möglichen Migration:
+
+1. Überführung aller Daten aus der Access-Datenbank in die MySQL Datenbank
+2. Kopieren aller Archivverzeichnisse auf den Server
+3. Automatisierte Aufnahme der Archivdateien in die Datenbank, dabei Abgleich mit den bereits erfassten Dateien 
+   und Zusammenführung mit den zugehörigen analogen Objekten, soweit aus den Daten ersichtlich.
+4. Einrichtung eines Backup-Scripts, welches die Archivdateien und die Datenbank täglich auf ein Cloudlaufwerk sichert.
+
+Arbeitsablauf für die Archivierung:
+1. Die Scans erfolgen wie gehabt auf den dafür vorgesehenen Rechnern.
+2. Die Scandateien werden auf eine Posteingangs-Freigabe unter dem jeweiligen Scanbenutzer kopiert. Noch nicht vollständige Scans landen in 
+   Archiveingang/Benutzername/In_Bearbeitung
+3. Auf allen Rechnern kann über z.B. http://archiv.local der Archiveingang in die Datenbank erfasst werden.
+   Hierzu gibt es die Möglichkeit, für eine oder mehrere Dateien Ort, Zeitraum, Speicherpfad und Kurzbeschreibung zu erfassen. daraus wird der
+   Dateiname im gewohnten Schema gebildet. Außerdem kann das zugehörige analoge Objekt erfasst werden.
+4. Zu jedem Archiveintrag wird ein Status gespeichert Eingang, Daten erfasst, Eintrag komplett, Eintrag veröffentlicht.
+6. Noch nicht vollständige beschriebene oder verschlagwortete Archiveinträge können nach bestimmten Suchkriterien ausgewählt und vervollständigt werden.
+7. Geplant wäre es, aus diesen Archiveinträgen automatisiert (bzw. auf Knopfdruck) einen Eintrag im Webarchiv zu generieren. 
+   Ggf. sollte bei der GMM angefragt werden, ob es eine API zur automatisierten Eintragserstellung gibt.
+
+Offene Fragen dazu:
+
+- Wäre das grundsätzlich eine gangbare Vorgehensweise?
+- Nach welchen Kriterien soll für die Nachbearbeitung gesucht werden können?
+- Wäre auch eine eigene Archiv-Webseite denkbar?
+- Es gibt eine Tabelle Unterthemen - wird die irgendwo genutzt?
+
