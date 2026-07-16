@@ -2,7 +2,7 @@
   <h5>{{ title }}</h5>
   <div class="treeview">
     <div class="d-flex align-items-center mb-2">
-      <input v-if="showSearch" class="form-control me-2" v-model="search" placeholder="Suchen...">
+      <input v-if="showSearch" ref="searchInput" class="form-control me-2" v-model="search" placeholder="Suchen...">
 
       <button type="button" class="btn btn-info" @click="$emit('refresh-tree')">
         <i class="bi bi-arrow-clockwise me-1"></i>
@@ -70,6 +70,9 @@ export default {
         return this.tree;
       return this.filterNodes(this.tree);
     }
+  },
+  mounted() {
+    this.$refs.searchInput.focus()
   },
   methods: {
     canMoveUp(node) {

@@ -85,4 +85,21 @@ class Archiv
     ];
     return Archivdb::preparedWebQuery($sql, $paramArray);
   }
+  public function create(string $parameter): JsonResponse
+  {
+    $param = Validator::validateJsonAgainstSchema(
+      $parameter,
+      [
+        "abJahr" => "integer,emptyOK",
+        "bisJahr" => "integer,emptyOK",
+        "analogNummer" => "integer,emptyOK",
+        "dokumentDatum" => "date,emptyOK",
+        "gesperrt" => "boolean",
+        "kurztitel" => "string",
+        "ort_id" => "integer",
+        "dateiPfad" => "string",
+      ]
+    );
+    return new JsonResponse(200, $param);
+  }
 }

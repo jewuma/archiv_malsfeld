@@ -23,9 +23,10 @@
             <!-- Ort -->
             <div class="mb-3">
               <label class="form-label">Ort</label>
-              <select class="form-select" v-model="ort_id" @change="selectedSpeicherpfad = ''; storeBasePath = ''">
+              <select class="form-select" v-model="archivObjekt.ort_id" ref="ortInput"
+                @change="selectedSpeicherpfad = ''; storeBasePath = ''">
                 <option value="">Bitte wählen...</option>
-                <option v-for="o in orte" :key="o.id" :value="o.id">
+                <option v-for="o in orte" :key="o.id" :value="Number(o.id)">
                   {{ o.name }}
                 </option>
               </select>
@@ -36,12 +37,12 @@
 
               <div class="col-6 mb-3">
                 <label class="form-label">Ab Jahr</label>
-                <input class="form-control" type="number" v-model="abJahr">
+                <input class="form-control" type="number" v-model="archivObjekt.abJahr">
               </div>
 
               <div class="col-6 mb-3">
                 <label class="form-label">Bis Jahr</label>
-                <input class="form-control" type="number" v-model="bisJahr">
+                <input class="form-control" type="number" v-model="archivObjekt.bisJahr">
               </div>
 
             </div>
@@ -49,32 +50,36 @@
             <div class="row">
               <div class="col-3 mb-3">
                 <label class="form-label">Dokumentdatum</label>
-                <input class="form-control" v-model="dokumentDatum">
+                <input class="form-control" v-model="archivObjekt.dokumentDatum" @blur="normalizeDokumentDatum">
               </div>
               <div class="col-9 mb-3">
                 <label class="form-label">Kurztitel</label>
-                <input class="form-control" v-model="kurztitel">
+                <input class="form-control" v-model="archivObjekt.kurztitel">
               </div>
             </div>
             <div class="row">
               <div class="col-3 mb-3">
                 <label class="form-label">Analogobjekt-Nr.</label>
-                <input class="form-control" v-model="analogNummer" @keyup="analogObjektExists">
+                <input class="form-control" v-model="archivObjekt.analogNummer" @keyup="analogObjektExists">
               </div>
               <div class="col-9 mb-3">
                 <label class="form-label">Analogobjekt</label>
-                <button v-if="analogTitel === '' && analogNummer.length > 4" class="form-control btn btn-success"
-                  @click="showAnalogObjektAnlegen = true">erstellen</button>
+                <button v-if="analogTitel === '' && archivObjekt.analogNummer.length > 4"
+                  class="form-control btn btn-success" @click="showAnalogObjektAnlegen = true">erstellen</button>
                 <input v-else type="text" class="form-control" disabled :value="analogTitel">
               </div>
             </div>
-
-            <!-- Gesperrt -->
-            <div class="form-check mb-3">
-              <input class="form-check-input" type="checkbox" id="gesperrt" v-model="gesperrt">
-              <label class="form-check-label" for="gesperrt">
-                Gesperrt
-              </label>
+            <div class="row">
+              <div class="col-3 mb-3">
+                <input class="form-check-input" type="checkbox" id="gesperrt" v-model="archivObjekt.gesperrt" />
+                <label class="form-check-label" for="gesperrt">
+                  Gesperrt
+                </label>
+              </div>
+              <div class="col-9 mb-3">
+                <input v-if="archivObjekt.gesperrt" class="form-control" type="number"
+                  v-model="archivObjekt.gesperrtBis">
+              </div>
             </div>
 
             <!-- Speicherpfad -->
@@ -91,11 +96,11 @@
             </div>
             <hr>
             <div class="d-grid gap-2">
-              <button v-if="Object.keys(selectedFiles).length > 1" class="btn btn-primary" :disabled="!pfadSelected"
+              <button v-if="saveMode === 2" class="btn btn-primary" :disabled="!isPfadSelected"
                 @click="save">Zusammenfassen
                 und speichern</button>
-              <button v-else class="btn btn-primary"
-                :disabled="Object.keys(selectedFiles).length === 0 || !pfadSelected" @click="save">Speichern</button>
+              <button v-else class="btn btn-primary" :disabled="saveMode === 0 || !isPfadSelected"
+                @click="save">Speichern</button>
               <button class="btn btn-outline-danger" :disabled="Object.keys(selectedFiles).length === 0"
                 @click="deleteSelected">
                 Ausgewählte löschen
@@ -107,8 +112,8 @@
     </div>
 
     <!-- Modal zur Auswahl des Speicherpfades -->
-    <StoragePathDialog v-if="showStoragDialog" ref="storageDialog" @path-selected="storagePathSelected"
-      :base-path="storeBasePath" @cancel="showStoragDialog = false" @refresh-tree="refreshTree" />
+    <StoragePathDialog v-if="showStorageDialog" @path-selected="storagePathSelected" :base-path="storeBasePath"
+      @cancel="showStorageDialog = false" @refresh-tree="refreshTree" />
     <AnalogObjektAnlegen v-if="showAnalogObjektAnlegen" :archiv-id="analogNummer"
       @cancel="showAnalogObjektAnlegen = false" />
     <MessageDialog v-if="showDeleteDialog" title="Ausgewählte Dateien wirklich löschen?"
@@ -135,21 +140,26 @@ export default {
 
   data() {
     return {
-      abJahr: "",
-      analogNummer: "",
+      archivObjekt: {
+        abJahr: 0,
+        analogNummer: "",
+        bisJahr: 0,
+        dokumentDatum: "",
+        gesperrt: false,
+        gesperrtBis: 0,
+        kurztitel: "",
+        ort_id: 0,
+        dateiPfad: "",
+      },
       analogTitel: "",
-      bisJahr: "",
-      dokumentDatum: "",
       eingang: [],
-      gesperrt: false,
-      kurztitel: "",
-      ort_id: 0,
       orte: [],
+      saveMode: 0,
       selectedFiles: {},
       selectedSpeicherpfad: "",
       showAnalogObjektAnlegen: false,
       showDeleteDialog: false,
-      showStoragDialog: false,
+      showStorageDialog: false,
       storeBasePath: "",
     };
   },
@@ -157,51 +167,52 @@ export default {
 
     speicherpfad() {
       let parts = [];
-      if (this.gesperrt)
+      if (this.archivObjekt.gesperrt)
         parts.push("ZYX");
-      if (this.dokumentDatum) {
-        parts.push(this.formatDokumentDatum(this.dokumentDatum));
-      } else if (this.abJahr || this.bisJahr) {
-        let von = this.abJahr || "0000";
-        let bis = this.bisJahr || von;
+      if (this.archivObjekt.dokumentDatum) {
+        parts.push(this.formatDokumentDatum(this.archivObjekt.dokumentDatum));
+      } else if (this.archivObjekt.abJahr || this.archivObjekt.bisJahr) {
+        let von = this.archivObjekt.abJahr || "0000";
+        let bis = this.archivObjekt.bisJahr || von;
         parts.push(`${von}bis${bis}`);
       }
-      if (this.kurztitel) {
-        parts.push(this.makeFilename(this.kurztitel));
+      if (this.archivObjekt.kurztitel) {
+        parts.push(this.makeFilename(this.archivObjekt.kurztitel));
       }
-      if (this.analogNummer) {
-        parts.push(this.makeFilename(this.analogNummer));
+      if (this.archivObjekt.analogNummer) {
+        parts.push(this.makeFilename(this.archivObjekt.analogNummer));
       }
-      if (this.ort_id !== 0) {
-        const ortsname = this.orte.find(ort => { return ort.id === this.ort_id })?.name
+      if (this.archivObjekt.ort_id !== 0) {
+        const ortsname = this.orte.find(ort => { return ort.id === this.archivObjekt.ort_id })?.name
         parts.push(ortsname.substr(0, 2))
       }
       return this.storeBasePath + this.selectedSpeicherpfad + "/" + parts.join("_") + ".pdf";
     },
-    pfadSelected() {
-      return (this.storeBasePath + this.selectedSpeicherpfad).split("/").length > 1 && this.kurztitel.length > 3
+    isPfadSelected() {
+      return (this.storeBasePath + this.selectedSpeicherpfad).split("/").length > 1 && this.archivObjekt.kurztitel.length > 3
     }
   },
-  async created() {
+  async mounted() {
     const orte = await this.$axios.get("/Orte/getAll");
     this.orte = orte.data.data
     this.refreshTree()
+    this.$refs.ortInput.focus()
   },
   methods: {
     async analogObjektExists() {
       this.analogTitel = ""
-      if (this.analogNummer.length > 4) {
-        const existResponse = await this.$axios.get("/Analogobjekte/getByArchivId/" + this.analogNummer)
+      if (this.archivObjekt.analogNummer.length > 4) {
+        const existResponse = await this.$axios.get("/Analogobjekte/getByArchivId/" + this.archivObjekt.analogNummer)
         if (existResponse.data.data.length > 0) {
           this.analogTitel = existResponse.data.data[0].titel
         }
       }
     },
     chooseStoragePath() {
-      const selectedOrt = this.orte.find(ort => { return ort.id === this.ort_id })
+      const selectedOrt = this.orte.find(ort => { return ort.id === this.archivObjekt.ort_id })
       if (selectedOrt === undefined) this.storeBasePath = ""
       else this.storeBasePath = selectedOrt.name + "/"
-      this.showStoragDialog = true
+      this.showStorageDialog = true
     },
     collectSelected(nodes, result = []) {
       for (const node of nodes) {
@@ -230,29 +241,42 @@ export default {
     },
     fileSelected(path, isSelected) {
       if (isSelected) {
-        this.selectedFiles[path] = ""
+        this.selectedFiles[path] = true
       } else {
         delete this.selectedFiles[path];
       }
+      this.setSaveMode()
     },
     formatDokumentDatum(value) {
-      value = value.trim();
       let m;
-      if ((m = value.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/))) {
-        let tag = m[1].padStart(2, "0");
-        let monat = m[2].padStart(2, "0");
-        let jahr = m[3];
-        return `${jahr}_${monat}${tag}`;
+      if ((m = value.match(/^(\d{2})\.(\d{2})\.(\d{4})$/))) {
+        return `${m[3]}_${m[2]}${m[1]}`;
       }
-      if ((m = value.match(/^(\d{1,2})\.(\d{4})$/))) {
-        let monat = m[1].padStart(2, "0");
-        let jahr = m[2];
-        return `${jahr}_${monat}00`;
+      if ((m = value.match(/^(\d{2})\.(\d{4})$/))) {
+        return `${m[2]}_${m[1]}01`;
       }
       if ((m = value.match(/^(\d{4})$/))) {
-        return `${m[1]}_0000`;
+        return `${m[1]}_0101`;
       }
-      return value;
+      return "";
+    },
+    normalizeDokumentDatum() {
+      let value = this.archivObjekt.dokumentDatum.replace(/\D/g, "");
+
+      if (value.length === 8) {
+        // DDMMYYYY -> DD.MM.YYYY
+        this.archivObjekt.dokumentDatum =
+          `${value.slice(0, 2)}.${value.slice(2, 4)}.${value.slice(4)}`;
+      }
+      else if (value.length === 6) {
+        // MMYYYY -> MM.YYYY
+        this.archivObjekt.dokumentDatum =
+          `${value.slice(0, 2)}.${value.slice(2)}`;
+      }
+      else if (value.length === 4) {
+        // YYYY
+        this.archivObjekt.dokumentDatum = value;
+      }
     },
     makeFilename(text) {
 
@@ -273,17 +297,22 @@ export default {
     async refreshTree() {
       const eingangResponse = await this.$axios.post("/ArchivFiles/getTree", { "directory": "archiveingang", "withFiles": true })
       this.eingang = eingangResponse.data.data
+      this.setSaveMode()
     },
     saveAnalogObject() {
 
     },
     async save() {
       const selectedFiles = this.collectSelected(this.eingang)
+      this.archivObjekt.dateiPfad = this.speicherpfad
       await this.$axios.post("/ArchivFiles/saveFiles", {
         "files": selectedFiles,
         "targetPath": this.storeBasePath + this.selectedSpeicherpfad,
         "targetFilename": this.speicherpfad.split('/').pop()
       })
+      const saveObjekt = JSON.parse(JSON.stringify(this.archivObjekt))
+      saveObjekt.dokumentDatum = this.formatDokumentDatum(saveObjekt.dokumentDatum).replace(/^(\d{4})_(\d{2})(\d{2})$/, "$1-$2-$3");
+      await this.$axios.post("/Archiv/create", saveObjekt)
       if (selectedFiles.length === 1) {
         this.$sendMsg(false, "Datei gespeichert")
       } else {
@@ -291,9 +320,15 @@ export default {
       }
       this.refreshTree()
     },
+    setSaveMode() {
+      const files = this.collectSelected(this.eingang)
+      if (files.length === 0) this.saveMode = 0
+      else if (files.length === 1) this.saveMode = 1
+      else this.saveMode = 2
+    },
     storagePathSelected(path) {
       this.selectedSpeicherpfad = path
-      this.showStoragDialog = false
+      this.showStorageDialog = false
     },
   }
 

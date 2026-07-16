@@ -25,7 +25,7 @@ const HTTP_METHOD_NOT_ALLOWED = 405;
 const HTTP_SERVER_ERROR = 500;
 
 $httpMethod = $_SERVER["REQUEST_METHOD"];
-$allowedOrigins = ["http://localhost:5173", "http://localhost:5174", "https://wulfkg.com"];
+$allowedOrigins = ["http://localhost:5173", "http://localhost:5174", "http://archivserver.local"];
 if (isset($_SERVER["HTTP_ORIGIN"])) {
   if (in_array($_SERVER["HTTP_ORIGIN"], $allowedOrigins)) {
     header("Access-Control-Allow-Origin: " . $_SERVER["HTTP_ORIGIN"]);
@@ -63,10 +63,12 @@ if ($httpMethod != "GET" && $httpMethod != "POST") {
 }
 API::handleRequest($className, $methodName, $parameter);
 
-class API {
+class API
+{
   public static bool $debug = DEBUG;
   public static array $permissions = [];
-  public static function handleRequest(string $className, string $methodName, string $parameter): void {
+  public static function handleRequest(string $className, string $methodName, string $parameter): void
+  {
     if ($className == "Users" && $methodName == "login") {
       try {
         self::sendJsonResponse((new Users())->login($parameter));
@@ -99,7 +101,8 @@ class API {
     }
     self::dispatch($className, $methodName, $parameter);
   }
-  private static function checkPermission(string $type, int $level): void {
+  private static function checkPermission(string $type, int $level): void
+  {
     if (
       (isset(self::$permissions[$type]) && self::$permissions[$type] >= $level) ||
       (self::$permissions["admin_right"] ?? false)
@@ -109,7 +112,8 @@ class API {
     self::sendErrorResponse("Berechtigung nicht ausreichend", HTTP_FORBIDDEN);
     exit();
   }
-  public static function dispatch(string $className, string $methodName, string $params): void {
+  public static function dispatch(string $className, string $methodName, string $params): void
+  {
     if (str_ends_with($className, "MeDb")) {
       self::sendErrorResponse("Nicht erlaubt", HTTP_FORBIDDEN);
     }
@@ -150,18 +154,20 @@ class API {
       }
     }
   }
-  private static function sendJsonResponse(JsonResponse $response): void {
+  private static function sendJsonResponse(JsonResponse $response): void
+  {
     http_response_code($response->code);
     header("Content-Type: application/json");
     echo json_encode($response->toArray());
     exit();
   }
-  private static function sendFileResponse(FileResponse $response): void {
+  private static function sendFileResponse(FileResponse $response): void
+  {
     header("Access-Control-Expose-Headers: Content-Disposition");
     header("Content-Description: File Transfer");
     header("Content-Type: " . $response->mimeType);
     header('Content-Disposition: attachment; filename="' . $response->fileName . '"');
-    if ($response->filePathForStreaming!==null) {
+    if ($response->filePathForStreaming !== null) {
       if (!is_file($response->filePathForStreaming)) {
         self::sendErrorResponse("Datei nicht gefunden", 404);
       }
@@ -175,7 +181,8 @@ class API {
     }
     exit();
   }
-  public static function sendErrorResponse(string $message, mixed $code = HTTP_BAD_REQUEST): void {
+  public static function sendErrorResponse(string $message, mixed $code = HTTP_BAD_REQUEST): void
+  {
     if (is_integer($code)) {
       http_response_code($code);
     } else {
