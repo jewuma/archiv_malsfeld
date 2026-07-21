@@ -30,7 +30,7 @@ class Archiv
       pl.kurzbezeichnung as platz,
       an.digitalisiert,
       an.dokumentendatum,
-      an.archivdatum,
+      DATE(an.archivdatum) AS archivdatum, 
       CONCAT(qu.name,', ',qu.vorname) as quelle
       FROM analogobjekte an 
       LEFT JOIN faecher fa ON an.fach_id=fa.id
@@ -41,6 +41,56 @@ class Archiv
       LEFT JOIN quellen qu ON an.quellen_id=qu.id
       WHERE archivobjekt_id=?";
     return ArchivDb::preparedWebQuery($sql, [$id]);
+  }
+  public function getFileobjects($id): JsonResponse
+  {
+    $id = (int) $id;
+    if (!$id) {
+      throw new \Exception("Archivobjekt-Id fehlt");
+    }
+    $sql = "SELECT 
+      da.id,
+      da.pfad,
+      da.dateiname,
+      ob.bezeichnung as objekttyp,
+      da.dateidatum,
+      DATE(da.archivdatum) AS archivdatum, 
+      CONCAT('/ArchivFiles/get/',da.id) AS filelink
+      FROM dateien da 
+      LEFT JOIN objekttypen ob ON da.objekttyp_id=ob.id
+      WHERE archivobjekt_id=?";
+    return ArchivDb::preparedWebQuery($sql, [$id]);
+
+  }
+  public function getStats(): JsonResponse
+  {
+    $sql =
+      "SELECT
+    (SELECT COUNT(*) 
+     FROM archivobjekte) AS archivobjekte,
+
+    (SELECT COUNT(*) 
+     FROM archivobjekte
+     WHERE TRIM(COALESCE(beschreibung, '')) != '') AS mitBeschreibung,
+
+    (SELECT COUNT(*) 
+     FROM archivobjekte
+     WHERE status = 3) AS veroeffentlicht,
+
+    (SELECT COUNT(*) 
+     FROM analogobjekte) AS analog,
+
+    (SELECT COUNT(*) 
+     FROM dateien) AS digital";
+    $sql2 = "SELECT o.name, COUNT(*) AS anzahl
+      FROM archivobjekte ao
+      JOIN orte o ON o.id = ao.ort_id
+      GROUP BY o.id, o.name
+      ORDER BY anzahl DESC";
+    $res1 = $this->db->query($sql);
+    $res2 = $this->db->query($sql2);
+    $result = array_merge($res1->fetch(), ["orte" => $res2->fetchAll()]);
+    return new JsonResponse(200, $result);
   }
   public function search(string $parameter): JsonResponse
   {

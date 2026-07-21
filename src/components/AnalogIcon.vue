@@ -14,10 +14,6 @@ export default {
   name: "AnalogIcon",
   emits: ["toggle-expand"],
   props: {
-    id: {
-      type: [Number, String],
-      required: true
-    },
     item: {
       type: Object,
       required: true

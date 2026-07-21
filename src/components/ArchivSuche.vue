@@ -108,16 +108,16 @@ export default {
       this.tableData = response.data.data.map(item => {
         item.expanded = false
         if (item.datei_anzahl === 1) {
-          item.archivdatei = { count: 1, firstId: item.erste_datei_id, type: "pdf" }
+          item.archivdatei = { id: item.id, count: 1, firstId: item.erste_datei_id, type: "pdf" }
         } else {
-          item.archivdatei = { count: item.datei_anzahl }
+          item.archivdatei = { id: item.id, count: item.datei_anzahl }
         }
         if (item.analogobjekt_anzahl === 1) {
-          item.analogobjekt = { count: 1, firstId: item.erste_analogbojekt_id, type: item.erste_analogobjekt_typ_id }
+          item.analogobjekt = { id: item.id, count: 1, firstId: item.erste_analogbojekt_id, type: item.erste_analogobjekt_typ_id }
         } else {
-          item.analogobjekt = { count: item.analogobjekt_anzahl }
+          item.analogobjekt = { id: item.id, count: item.analogobjekt_anzahl }
         }
-        if (item.datei_anzahl > 1 || item.analogobjekt_anzahl > 0) {
+        if (item.datei_anzahl > 0 || item.analogobjekt_anzahl > 0) {
           item.hasDetails = true
         }
         return item;

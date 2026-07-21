@@ -122,12 +122,11 @@
                 </i>
               </template>
               <template v-else-if="field.type === 'password'">********</template>
-              <FilesIcon v-else-if="field.type === 'files'" :id="item.id" :item="item" />
-              <AnalogIcon v-else-if="field.type === 'analogobjekt'" :id="item.id" :item="item"
+              <FilesIcon v-else-if="field.type === 'files'" :item="item[field.name]" />
+              <AnalogIcon v-else-if="field.type === 'analogobjekt'" :item="item[field.name]"
                 @toggle-expand="$emit('toggle-expand', item)" />
               <template v-else-if="field.type === 'pdf'">
-                <div v-if="item[field.name]?.valid"
-                  class="boolean-icon d-flex justify-content-center align-items-center">
+                <div v-if="item[field.name] !== ''" class="boolean-icon d-flex justify-content-center align-items-center">
                   <button class="btn btn-link" @click.stop="openPdf(item[field.name])" draggable="true"
                     @dragstart="onDragStart($event, item, item[field.name])">
                     <i class="bi bi-file-earmark-pdf-fill text-danger fs-2" />
@@ -212,6 +211,11 @@ export default {
       required: false,
       default: null,
     },
+    useAllYSpace: {
+      type: Boolean,
+      required: false,
+      default: true
+    }
   },
   emits: ["edit", "row-selected", "file-dropped", "action", "toggle-expand"],
   data() {
@@ -316,6 +320,7 @@ export default {
       return result
     },
     tableStyle() {
+      if (!this.useAllYSpace) return {}
       return {
         height: `calc(100vh - ${this.startY}px)`,
       };

@@ -45,11 +45,6 @@ export default {
 
   props: {
 
-    id: {
-      type: [Number, String],
-      required: true
-    },
-
     item: {
       type: Object,
       required: true
