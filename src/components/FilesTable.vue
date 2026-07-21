@@ -14,7 +14,7 @@
 <script>
 export default {
 
-  name: "TableFiles",
+  name: "FilesTable",
 
   /**
    * Displays attached files inside a table cell.
@@ -54,8 +54,12 @@ export default {
     item: {
       type: Object,
       required: true
+    },
+    showIcon: {
+      type: Boolean,
+      required: false,
+      default: false
     }
-
   },
 
   emits: [
@@ -66,7 +70,7 @@ export default {
 
     iconClass() {
 
-      const type = this.item.firstType || [];
+      const type = this.item.type || [];
 
       if (["jpg", "jpeg", "png", "gif", "bmp", "tif", "tiff", "webp"].includes(type))
         return "bi bi-image text-success";

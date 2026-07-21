@@ -44,7 +44,12 @@
             <!-- Tabelle -->file
             <div class="col-12">
               <TableComponent ref="childTable" :fields="fields" :filterOptions="filterOptions" :table-data="tableData"
-                :highlight="highlight" @row-selected="rowSelected" @edit="rowEdited" @action="onAction" />
+                :highlight="highlight" @row-selected="rowSelected" @edit="rowEdited" @action="onAction"
+                @toggle-expand="toggleExpand">
+                <template #expanded="slotProps">
+                  <slot name="expanded" v-bind="slotProps" />
+                </template>
+              </TableComponent>
             </div>
           </div>
         </div>
@@ -123,7 +128,7 @@ export default {
       offsetY: 0,
     }
   },
-  emits: ["action", "cancel", "confirm", "edit", "file-clicked", "file-dropped", "menu-selected", "refresh-files", "row-selected", "select-folder"],
+  emits: ["action", "cancel", "confirm", "edit", "file-clicked", "file-dropped", "menu-selected", "refresh-files", "row-selected", "select-folder", "toggle-expand"],
   mounted() {
     if (!this.showAsModal) {
       return;
@@ -196,6 +201,9 @@ export default {
     rowEdited(rowInfo) {
       this.$emit("edit", rowInfo);
     },
+    toggleExpand(row) {
+      this.$emit("toggle-expand", row)
+    }
   },
 };
 </script>

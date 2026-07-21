@@ -90,10 +90,9 @@ class API
       self::sendErrorResponse("Session-ID fehlt");
     }
     if (self::$debug) {
-      self::$permissions = ["admin_right" => 1, "client_right" => 1, "staff_right" => 1];
+      self::$permissions = ["admin_right" => 1, "user_right" => 1];
     } else {
       self::$permissions = (new Users())->getPermissions($sessionId);
-      AppContext::setStaffId(self::$permissions["staff_id"]);
       AppContext::setRights(self::$permissions);
     }
     if (empty(self::$permissions)) {
@@ -119,10 +118,8 @@ class API
     }
     if ($className == "Users" || $className == "Settings") {
       self::checkPermission("admin_right", 1);
-    } elseif ($className == "Staff") {
-      self::checkPermission("staff_right", 1);
     } else {
-      self::checkPermission("client_right", 1);
+      self::checkPermission("user_right", 1);
     }
     try {
       $fullClassName = __NAMESPACE__ . "\\" . $className;

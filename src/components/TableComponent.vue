@@ -6,12 +6,13 @@
     <table class="table table-bordered table-striped" :style="{ tableLayout: hasFixedWidth ? 'fixed' : 'auto' }">
       <thead ref="tableHead">
         <tr>
-          <th v-for="(field, index) in fields.filter((f) => !f.hidden)" :key="'header-' + field.name" :class="{
+          <th v-for="(field, index) in visibleFields" :key="'header-' + field.name" :class="{
             'text-center':
               field.type === 'boolean' ||
-              field.type === 'pdf' ||
-              field.type === 'files' ||
               field.type === 'date' ||
+              field.type === 'expander' ||
+              field.type === 'files' ||
+              field.type === 'pdf' ||
               field.type === 'time' ||
               field?.align === 'center',
             'text-right': field.type === 'currency',
@@ -27,19 +28,13 @@
               <i v-if="currentSortDir === 'asc'" class="bi bi-arrow-up" />
               <i v-if="currentSortDir === 'desc'" class="bi bi-arrow-down" />
             </span>
-            <template v-if="field.filterable">
-              <label class="inline-filter">
-                Nur Aktive
-                <input type="checkbox" checked @change="toggleFilter(field.name)" @click.stop>
-              </label>
-            </template>
           </th>
         </tr>
-        <tr>
-          <th v-for="field in fields.filter((f) => !f.hidden)" :key="'filter-' + field.name"
+        <tr v-if="displayFilter">
+          <th v-for="field in visibleFields" :key="'filter-' + field.name"
             :style="field.width ? { width: field.width, minWidth: field.width } : null">
             <input
-              v-if="field.type !== 'boolean' && field.type !== 'pdf' && field.type !== 'select' && field.type !== 'date'"
+              v-if="field.type !== 'boolean' && field.type !== 'pdf' && field.type !== 'select' && field.type !== 'date' && field.type !== 'expander'"
               v-model="filters[field.name]" placeholder="Suchen..." class="form-control form-control-sm">
             <select v-else-if="field.type === 'select'" v-model="filters[field.name]"
               class="form-select form-select-sm">
@@ -55,96 +50,114 @@
         </tr>
       </thead>
       <tbody class="scrollable-tbody">
-        <tr v-for="item in processedData" :key="item.id" class="cursor-pointer"
-          :class="{ 'highlight-row': highlight === item.id, 'table-primary': dragOverRow === item.id }"
-          @click="selectRow(item)" @dragover="onDragOver" @drop="onDrop($event, item)"
-          @dragenter="dragOverRow = item.id" @dragleave.self="dragOverRow = null">
-          <td v-for="field in fields.filter((f) => !f.hidden)" :key="field.name" :class="{
-            'text-center':
-              field.type === 'boolean' ||
-              field.type === 'pdf' ||
-              field.type === 'date' ||
-              field.type === 'time' ||
-              field?.align === 'center',
-            'text-right': field.type === 'currency',
-            'is-invalid': getCellError(item, field.name),
-          }" :title="getCellError(item, field.name)" data-bs-toggle="tooltip" data-bs-placement="top"
-            :style="field.width ? { width: field.width, minWidth: field.width } : null">
-            <template v-if="field.type === 'boolean'">
-              <template v-if="isInlineEditable(field, item)">
-                <input type="checkbox" :checked="item[field.name]"
-                  @change="onEdit(item, field.name, $event.target.checked)" class="form-check-input"
-                  :ref="'input-' + item.id + '-' + field.name">
+        <template v-for="item in processedData" :key="item.id">
+          <tr class="cursor-pointer"
+            :class="{ 'highlight-row': highlight === item.id, 'table-primary': dragOverRow === item.id }"
+            @click="selectRow(item)" @dragover="onDragOver" @drop="onDrop($event, item)"
+            @dragenter="dragOverRow = item.id" @dragleave.self="dragOverRow = null">
+            <td v-for="field in visibleFields" :key="field.name" :class="{
+              'text-center':
+                field.type === 'boolean' ||
+                field.type === 'date' ||
+                field.type === 'expander' ||
+                field.type === 'files' ||
+                field.type === 'analogobjekt' ||
+                field.type === 'pdf' ||
+                field.type === 'time' ||
+                field?.align === 'center',
+              'text-right': field.type === 'currency',
+              'is-invalid': getCellError(item, field.name),
+            }" :title="getCellError(item, field.name)" data-bs-toggle="tooltip" data-bs-placement="top"
+              :style="field.width ? { width: field.width, minWidth: field.width } : null">
+              <template v-if="field.type === 'boolean'">
+                <template v-if="isInlineEditable(field, item)">
+                  <input type="checkbox" :checked="item[field.name]"
+                    @change="onEdit(item, field.name, $event.target.checked)" class="form-check-input"
+                    :ref="'input-' + item.id + '-' + field.name">
+                </template>
+                <template v-else>
+                  <div class="boolean-icon">
+                    <span v-if="item[field.name]" class="text-success">
+                      <i class="bi bi-check-circle-fill" />
+                    </span>
+                    <span v-else class="text-danger">
+                      <i class="bi bi-x-circle-fill" />
+                    </span>
+                  </div>
+                </template>
               </template>
-              <template v-else>
-                <div class="boolean-icon">
-                  <span v-if="item[field.name]" class="text-success">
-                    <i class="bi bi-check-circle-fill" />
-                  </span>
-                  <span v-else class="text-danger">
-                    <i class="bi bi-x-circle-fill" />
-                  </span>
-                </div>
-              </template>
-            </template>
-            <template v-else-if="field.type === 'date'">
-              <template v-if="isInlineEditable(field, item)">
-                <input :ref="'input-' + item.id + '-' + field.name" v-model="item[field.name]"
-                  class="form-control form-control-sm" type="date"
-                  @input="onEdit(item, field.name, $event.target.value)" @focus="selectRow(item)">
-              </template>
-              <template v-else>
-                {{ formatDate(item[field.name]) }}
-              </template>
-            </template>
-            <template v-else-if="field.type === 'currency'">
-              {{ formatCurrency(item[field.name]) }}
-            </template>
-            <template v-else-if="field.type === 'select'">
-              <template v-if="isInlineEditable(field, item)">
-                <select :ref="'input-' + item.id + '-' + field.name" v-model="item[field.name]"
-                  class="form-select form-select-sm" @change="onEdit(item, field.name, $event.target.value)"
-                  @focus="selectRow(item)">
-                  <option v-for="opt in field.options" :key="opt.value" :value="opt.value">
-                    {{ opt.display }}
-                  </option>
-                </select>
-              </template>
-              <template v-else>
-                {{ getDisplayValue(field, item[field.name]) }}
-              </template>
-            </template>
-            <template v-else-if="field.type === 'time'">
-              {{ formatTime(item[field.name]) }}
-            </template>
-            <template v-else-if="field.type === 'password'">********</template>
-            <template v-else-if="field.type === 'pdf'">
-              <div v-if="item[field.name]?.valid" class="boolean-icon d-flex justify-content-center align-items-center">
-                <button class="btn btn-link" @click.stop="openPdf(item[field.name])" draggable="true"
-                  @dragstart="onDragStart($event, item, item[field.name])">
-                  <i class="bi bi-file-earmark-pdf-fill text-danger fs-2" />
-                </button>
-              </div>
-            </template>
-            <TableFiles v-else-if="field.type === 'files'" :id="item.id" :item="item[field.name]"></TableFiles>
-            <template v-else>
-              <template v-if="isInlineEditable(field, item)">
-                <div class="d-flex align-items-center">
+              <template v-else-if="field.type === 'date'">
+                <template v-if="isInlineEditable(field, item)">
                   <input :ref="'input-' + item.id + '-' + field.name" v-model="item[field.name]"
-                    class="form-control form-control-sm" @input="onEdit(item, field.name, $event.target.value)"
+                    class="form-control form-control-sm" type="date"
+                    @input="onEdit(item, field.name, $event.target.value)" @focus="selectRow(item)">
+                </template>
+                <template v-else>
+                  {{ formatDate(item[field.name]) }}
+                </template>
+              </template>
+              <template v-else-if="field.type === 'currency'">
+                {{ formatCurrency(item[field.name]) }}
+              </template>
+              <template v-else-if="field.type === 'select'">
+                <template v-if="isInlineEditable(field, item)">
+                  <select :ref="'input-' + item.id + '-' + field.name" v-model="item[field.name]"
+                    class="form-select form-select-sm" @change="onEdit(item, field.name, $event.target.value)"
                     @focus="selectRow(item)">
+                    <option v-for="opt in field.options" :key="opt.value" :value="opt.value">
+                      {{ opt.display }}
+                    </option>
+                  </select>
+                </template>
+                <template v-else>
+                  {{ getDisplayValue(field, item[field.name]) }}
+                </template>
+              </template>
+              <template v-else-if="field.type === 'time'">
+                {{ formatTime(item[field.name]) }}
+              </template>
+              <template v-else-if="field.type === 'expander'">
+                <i v-if="item.hasDetails" :class="item.expanded ? 'bi bi-chevron-down' : 'bi bi-chevron-right'"
+                  @click.stop="$emit('toggle-expand', item)" style="cursor:pointer">
+                </i>
+              </template>
+              <template v-else-if="field.type === 'password'">********</template>
+              <FilesIcon v-else-if="field.type === 'files'" :id="item.id" :item="item" />
+              <AnalogIcon v-else-if="field.type === 'analogobjekt'" :id="item.id" :item="item"
+                @toggle-expand="$emit('toggle-expand', item)" />
+              <template v-else-if="field.type === 'pdf'">
+                <div v-if="item[field.name]?.valid"
+                  class="boolean-icon d-flex justify-content-center align-items-center">
+                  <button class="btn btn-link" @click.stop="openPdf(item[field.name])" draggable="true"
+                    @dragstart="onDragStart($event, item, item[field.name])">
+                    <i class="bi bi-file-earmark-pdf-fill text-danger fs-2" />
+                  </button>
                 </div>
               </template>
               <template v-else>
-                {{ item[field.name] }}
+                <template v-if="isInlineEditable(field, item)">
+                  <div class="d-flex align-items-center">
+                    <input :ref="'input-' + item.id + '-' + field.name" v-model="item[field.name]"
+                      class="form-control form-control-sm" @input="onEdit(item, field.name, $event.target.value)"
+                      @focus="selectRow(item)">
+                  </div>
+                </template>
+                <template v-else>
+                  {{ item[field.name] }}
+                </template>
               </template>
-            </template>
-            <i v-if="field?.icon" :class="field.icon" class="text-muted" style="margin-left: 4px;"
-              @click="$emit('action', field.emit, item)" />
-          </td>
-        </tr>
+              <i v-if="field?.icon" :class="field.icon" class="text-muted" style="margin-left: 4px;"
+                @click="$emit('action', field.emit, item)" />
+            </td>
+          </tr>
+          <tr v-if="item.expanded">
+            <td :colspan="visibleFieldCount">
+              <slot name="expanded" :item="item"></slot>
+            </td>
+          </tr>
+        </template>
         <tr v-if="hasSumField">
-          <td v-for="(field, index) in fields.filter((f) => !f.hidden)" :key="'sum-' + field.name"
+          <td v-for="(field, index) in visibleFields" :key="'sum-' + field.name"
             :class="{ 'text-center': field?.align === 'center', sumtd: true, 'text-right': field.type === 'currency' }"
             :style="field.width ? { width: field.width, minWidth: field.width } : null">
             <template v-if="field.sumUp">
@@ -167,17 +180,24 @@
 </template>
 
 <script>
+import AnalogIcon from './AnalogIcon.vue';
+import FilesIcon from './FilesIcon.vue';
 import FilterComponent from './FilterComponent.vue';
-import TableFiles from './TableFiles.vue';
 export default {
   components: {
-    FilterComponent,
-    TableFiles
+    AnalogIcon,
+    FilesIcon,
+    FilterComponent
   },
   props: {
     fields: {
       type: Array,
       required: true,
+    },
+    displayFilter: {
+      type: Boolean,
+      default: true,
+      required: false
     },
     filterOptions: {
       type: Array,
@@ -193,7 +213,7 @@ export default {
       default: null,
     },
   },
-  emits: ["edit", "row-selected", "file-dropped", "action"],
+  emits: ["edit", "row-selected", "file-dropped", "action", "toggle-expand"],
   data() {
     return {
       activeFilters: [],
@@ -299,6 +319,12 @@ export default {
       return {
         height: `calc(100vh - ${this.startY}px)`,
       };
+    },
+    visibleFieldCount() {
+      return this.fields.filter(f => !f.hidden).length;
+    },
+    visibleFields() {
+      return this.fields.filter(f => !f.hidden);
     },
   },
   watch: {

@@ -5,9 +5,11 @@ namespace own;
 use own\Validator;
 use own\JsonResponse;
 
-class Users extends DbAccess {
+class Users extends DbAccess
+{
   protected $table = "users";
-  public function changePassword(string $sessionId, string $parameter): JsonResponse {
+  public function changePassword(string $sessionId, string $parameter): JsonResponse
+  {
     $stmt = $this->db->prepare("SELECT userId FROM usersessions WHERE sessionId=?");
     $stmt->execute([$sessionId]);
     $userId = $stmt->fetchColumn();
@@ -36,38 +38,39 @@ class Users extends DbAccess {
       throw new \Exception("Usersession nicht vorhanden", 401);
     }
   }
-  private function exists(string $username): bool {
+  private function exists(string $username): bool
+  {
     $stmt = $this->db->prepare("SELECT id FROM users WHERE `username`=:username");
     $stmt->execute([":username" => $username]);
     return $stmt->rowCount() > 0;
   }
-  public function get(string|array|int $id): JsonResponse {
+  public function get(string|array|int $id): JsonResponse
+  {
     $result = parent::get($id);
     unset($result["data"]["password"]);
     return $result;
   }
-  public function getAll(): JsonResponse {
+  public function getAll(): JsonResponse
+  {
     $res = $this->db->query(
-      "SELECT id,`username`,`firstname`,`name`,'***unchanged***' AS password,'***unchanged***' AS password_repeat,`position`,`staff_id` FROM users"
+      "SELECT id,`username`,`firstname`,`name`,'***unchanged***' AS password,'***unchanged***' AS password_repeat,`position` FROM users"
     );
     $users = $res->fetchAll();
     return JsonResponse::success($users);
   }
-  public function getPermissions(string $sessionId): array {
+  public function getPermissions(string $sessionId): array
+  {
     $stmt = $this->db->prepare("SELECT userId FROM usersessions WHERE sessionId=?");
     $stmt->execute([$sessionId]);
     $userId = $stmt->fetchColumn();
 
     if ($userId !== false) {
-      $stmt = $this->db->prepare("SELECT `position`,`staff_id` FROM users WHERE id=?");
+      $stmt = $this->db->prepare("SELECT `position` FROM users WHERE id=?");
       $stmt->execute([$userId]);
       $result = $stmt->fetch();
       if ($result) {
         $position = $result["position"];
-        $rights = $this->getRights($position);
-
-        $result["staff_id"] = (int) $result["staff_id"];
-        return array_merge($result, $rights);
+        return $this->getRights($position);
       } else {
         return [];
       }
@@ -76,20 +79,20 @@ class Users extends DbAccess {
     }
   }
 
-  private function getRights(int $position): array {
+  private function getRights(int $position): array
+  {
     //"Administrator"   => 1
-    //"Büro/Verwaltung" => 2
-    //"Einsatzplanung"  => 3
-    //"Haushaltshilfe"  => 4
+    //"Normaler User"   => 2
     $result["admin_right"] = $position == 1 ? 1 : 0;
-    $result["client_right"] = $position < 4 ? 1 : 0;
-    $result["staff_right"] = 1;  //vorläufig $position == 1 || $position == 3 || $position == 4 ? 1 : 0;
+    $result["user_right"] = 1;
     return $result;
   }
-  protected function getTableName(): string {
+  protected function getTableName(): string
+  {
     return $this->table;
   }
-  public function login(string $data): JsonResponse {
+  public function login(string $data): JsonResponse
+  {
 
     $ip = $_SERVER['REMOTE_ADDR'];
 
@@ -129,17 +132,16 @@ class Users extends DbAccess {
           "sessionId" => $sessionId,
           "rights" => [
             "admin" => $rights["admin_right"],
-            "clients" => $rights["client_right"],
-            "staff" => $rights["staff_right"],
+            "user" => $rights["user_right"],
           ],
-          "staff_id" => $user["staff_id"],
         ]
       );
     }
     $protection->registerFailedAttempt($ip, $username, $user["id"] ?? null);
     throw new \Exception("Nicht authorisiert!", 401);
   }
-  public function logout(string $sessionId): JsonResponse {
+  public function logout(string $sessionId): JsonResponse
+  {
     $stmt = $this->db->prepare("DELETE FROM usersessions WHERE sessionId=?");
     $stmt->execute([$sessionId]);
     if ($stmt->rowCount()) {
@@ -148,7 +150,8 @@ class Users extends DbAccess {
       throw new \Exception("Session nicht gefunden", 404);
     }
   }
-  public function save(string|array $data, bool $isUpdate = false): JsonResponse {
+  public function save(string|array $data, bool $isUpdate = false): JsonResponse
+  {
     if (!is_string($data)) {
       throw new \InvalidArgumentException("Ungültige Daten. String erwartet.");
     }
@@ -167,7 +170,8 @@ class Users extends DbAccess {
     }
     return parent::save(json_encode($saveData), $isUpdate);
   }
-  public function update(string $data): JsonResponse {
+  public function update(string $data): JsonResponse
+  {
     return $this->save($data, true);
   }
 }
