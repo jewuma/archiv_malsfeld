@@ -1,22 +1,23 @@
 <?php
 
 namespace own;
+
 use own\FileResponse;
 use own\JsonResponse;
 use own\ArchivDb;
 use own\Validator;
-class ArchivFiles
-{
-    private string $baseDir = __DIR__ . "/../../../archivdateien/";
-    private string $inboxDir = __DIR__ . "/../../../archivdateien/archiveingang/";
+
+require_once __DIR__ . "/../.clientData.inc.php";
+
+class ArchivFiles {
+    private string $baseDir = ARCHIV_FILE_PATH;
+    private string $inboxDir = ARCHIV_FILE_PATH . "archiveingang/";
     private int $modifiedbaseDirLength = 0;
     private \finfo|bool $finfo;
-    public function __construct()
-    {
+    public function __construct() {
         $this->finfo = finfo_open(FILEINFO_MIME_TYPE);
     }
-    public function deleteMulti(string $parameters): JsonResponse
-    {
+    public function deleteMulti(string $parameters): JsonResponse {
         $param = Validator::validateJsonAgainstSchema($parameters, ["files" => "array"]);
         foreach ($param["files"] as $file) {
             $path = realpath($this->inboxDir . $file);
@@ -31,8 +32,7 @@ class ArchivFiles
         }
         return new JsonResponse(200, [], "OK");
     }
-    public function get(int $id): FileResponse
-    {
+    public function get(int $id): FileResponse {
         $db = ArchivDb::getDbInstance();
         $sql = "SELECT pfad, dateiname FROM dateien WHERE id = :id";
         $stmt = $db->prepare($sql);
@@ -53,8 +53,7 @@ class ArchivFiles
             $pfad
         );
     }
-    public function getByPath($parameters): FileResponse
-    {
+    public function getByPath(string $parameters): FileResponse {
         $param = Validator::validateJsonAgainstSchema($parameters, ["path" => "string", "fromInbox" => "boolean"]);
         $path = $param["fromInbox"] ? realpath($this->inboxDir . $param["path"]) : realpath($this->baseDir . $param["path"]);
         if (!$path) {
@@ -70,8 +69,7 @@ class ArchivFiles
             $path
         );
     }
-    public function getTree(string $parameters): JsonResponse
-    {
+    public function getTree(string $parameters): JsonResponse {
         $param = Validator::validateJsonAgainstSchema(
             $parameters,
             ["directory" => "string,optional", "withFiles" => "boolean,optional"]
@@ -84,8 +82,7 @@ class ArchivFiles
         return new JsonResponse(200, [$this->buildNode($directory, $withFiles)]);
     }
 
-    private function buildNode(string $path, bool $withFiles): array
-    {
+    private function buildNode(string $path, bool $withFiles): array {
         $node = [
             "name" => basename($path),
             "path" => substr($path, $this->modifiedbaseDirLength),
@@ -144,8 +141,7 @@ class ArchivFiles
 
         return $node;
     }
-    public function saveFiles($parameters)
-    {
+    public function saveFiles(string $parameters) {
         $param = Validator::validateJsonAgainstSchema($parameters, [
             "files" => "array",
             "targetPath" => "string",

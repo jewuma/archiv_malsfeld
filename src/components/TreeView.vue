@@ -12,7 +12,7 @@
     <TreeNode v-for="node in filteredTree" :key="node.path" :node="node" :siblings="filteredTree" :search="search"
       :selectable="selectable" @select="selectNode" @file-selected="fileSelected"
       @load-children="$emit('load-children', $event)" @preview="showPreview($event)" @move-up="moveUp"
-      @move-down="moveDown" />
+      @move-down="moveDown" @folder-selected="folderSelected" />
   </div>
 </template>
 
@@ -26,6 +26,7 @@ export default {
   name: "TreeView",
   emits: [
     "file-selected",
+    "folder-selected",
     "select",
     "load-children",
     "preview",
@@ -72,7 +73,9 @@ export default {
     }
   },
   mounted() {
-    this.$refs.searchInput.focus()
+    if (this.showSearch) {
+      this.$refs.searchInput.focus();
+    }
   },
   methods: {
     canMoveUp(node) {
@@ -87,7 +90,25 @@ export default {
       return node.sort < fileNodes.length;
     },
     fileSelected(path, isSelected) {
+      const target = this.findNodeByPath(this.tree, path);
+      if (target) {
+        target.selected = isSelected;
+      }
       this.$emit("file-selected", path, isSelected);
+    },
+    findNodeByPath(nodes, path) {
+      for (const node of nodes) {
+        if (node.path === path) {
+          return node;
+        }
+
+        const childMatch = this.findNodeByPath(node.children ?? [], path);
+        if (childMatch) {
+          return childMatch;
+        }
+      }
+
+      return null;
     },
     filterNodes(nodes) {
       const result = [];
@@ -108,6 +129,11 @@ export default {
         }
       });
       return result;
+    },
+    folderSelected(node, isSelected) {
+      const target = this.findNodeByPath(this.tree, node.path) ?? node;
+      this.selectFolderRecursive(target, isSelected);
+      this.$emit("folder-selected", target, isSelected);
     },
     getMovableSiblings(siblings) {
       return siblings.filter(n => n.type === 'file');
@@ -149,6 +175,18 @@ export default {
         [siblings[nextIndex], siblings[nodeIndex]];
 
       this.updateMoveFlags(siblings);
+    },
+    selectFolderRecursive(node, isSelected) {
+      node.selected = isSelected;
+
+      if (node.type === "file") {
+        this.$emit("file-selected", node.path, isSelected);
+        return;
+      }
+
+      (node.children || []).forEach(child => {
+        this.selectFolderRecursive(child, isSelected);
+      });
     },
     selectNode(node) {
       this.$emit("select", node);

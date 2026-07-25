@@ -20,6 +20,20 @@
             <h5 class="mb-0">Archivinformationen</h5>
           </div>
           <div class="card-body own-color">
+
+            <div class="row mb-3">
+              <div class="col-3">
+                <label class="form-label">Analogobjekt-Nr.</label>
+                <input class="form-control" v-model="analogObjekt.archiv_id" @keyup="analogObjektExists">
+              </div>
+              <div class="col-9">
+                <label class="form-label">Analogobjekt</label>
+                <button v-if="!analogObjekt.id && analogObjekt.archiv_id.length > 4"
+                  class="form-control btn btn-success" @click="showAnalogObjektAnlegen = true">erstellen</button>
+                <input v-else type="text" class="form-control" disabled :value="archivObjekt.titel">
+              </div>
+            </div>
+
             <!-- Ort -->
             <div class="mb-3">
               <label class="form-label">Ort</label>
@@ -33,56 +47,61 @@
             </div>
 
             <!-- Zeitraum -->
-            <div class="row">
+            <div class="row mb-3">
 
-              <div class="col-6 mb-3">
+              <div class="col-3">
                 <label class="form-label">Ab Jahr</label>
-                <input class="form-control" type="number" v-model="archivObjekt.abJahr">
+                <input class="form-control" type="text" v-model="archivObjekt.zeitraum_start">
+              </div>
+              <div class="col-3">
+                <label class="form-label">Ergänzung</label>
+                <input class="form-control" type="text" v-model="archivObjekt.start_ergaenzung">
               </div>
 
-              <div class="col-6 mb-3">
+              <div class="col-3">
                 <label class="form-label">Bis Jahr</label>
-                <input class="form-control" type="number" v-model="archivObjekt.bisJahr">
+                <input class="form-control" type="text" v-model="archivObjekt.zeitraum_ende">
               </div>
-
+              <div class="col-3">
+                <label class="form-label">Ergänzung</label>
+                <input class="form-control" type="text" v-model="archivObjekt.ende_ergaenzung">
+              </div>
             </div>
 
-            <div class="row">
-              <div class="col-3 mb-3">
+            <div class="row mb-3">
+              <label class="col-sm-3 col-form-label">Titel</label>
+              <div class="col-sm-9">
+                <input class="form-control" v-model="archivObjekt.titel">
+              </div>
+            </div>
+            <div class="row mb-3">
+              <label class="col-sm-3 col-form-label">Beschreibung</label>
+              <div class="col-sm-9">
+                <textarea class="form-control" rows="3" v-model="archivObjekt.beschreibung"></textarea>
+              </div>
+            </div>
+
+            <div class="row mb-3">
+              <div class="col-3">
                 <label class="form-label">Dokumentdatum</label>
-                <input class="form-control" v-model="archivObjekt.dokumentDatum" @blur="normalizeDokumentDatum">
+                <input class="form-control" v-model="datei.dateidatum" @blur="normalizeDokumentDatum">
               </div>
-              <div class="col-9 mb-3">
+              <div class="col-5">
                 <label class="form-label">Kurztitel</label>
-                <input class="form-control" v-model="archivObjekt.kurztitel">
+                <input class="form-control" v-model="kurztitel">
+              </div>
+              <div class="col-1">
+                <label class="form-label">Sperre</label>
+                <div class="form-check form-switch m-0">
+                  <input class="form-check-input large-switch pt-2" type="checkbox" id="geschuetzt"
+                    v-model="datei.gesperrt">
+                </div>
+              </div>
+              <div v-if="datei.gesperrt" class="col-2">
+                <label class="form-label">Sperre bis</label>
+                <input class="form-control" type="text" v-model="datei.gesperrt_bis">
               </div>
             </div>
-            <div class="row">
-              <div class="col-3 mb-3">
-                <label class="form-label">Analogobjekt-Nr.</label>
-                <input class="form-control" v-model="archivObjekt.analogNummer" @keyup="analogObjektExists">
-              </div>
-              <div class="col-9 mb-3">
-                <label class="form-label">Analogobjekt</label>
-                <button v-if="analogTitel === '' && archivObjekt.analogNummer.length > 4"
-                  class="form-control btn btn-success" @click="showAnalogObjektAnlegen = true">erstellen</button>
-                <input v-else type="text" class="form-control" disabled :value="analogTitel">
-              </div>
-            </div>
-            <div class="row">
-              <div class="col-3 mb-3">
-                <input class="form-check-input" type="checkbox" id="gesperrt" v-model="archivObjekt.gesperrt" />
-                <label class="form-check-label" for="gesperrt">
-                  Gesperrt
-                </label>
-              </div>
-              <div class="col-9 mb-3">
-                <input v-if="archivObjekt.gesperrt" class="form-control" type="number"
-                  v-model="archivObjekt.gesperrtBis">
-              </div>
-            </div>
-
-            <!-- Speicherpfad -->
             <div class="mb-3">
               <button class="btn btn-outline-secondary" @click="chooseStoragePath">
                 Speicherpfad wählen...
@@ -114,8 +133,8 @@
     <!-- Modal zur Auswahl des Speicherpfades -->
     <StoragePathDialog v-if="showStorageDialog" @path-selected="storagePathSelected" :base-path="storeBasePath"
       @cancel="showStorageDialog = false" @refresh-tree="refreshTree" />
-    <AnalogObjektAnlegen v-if="showAnalogObjektAnlegen" :archiv-id="analogNummer"
-      @cancel="showAnalogObjektAnlegen = false" />
+    <AnalogObjektAnlegen v-if="showAnalogObjektAnlegen" :analog-objekt="analogObjekt"
+      @create-analog="createAnalogObjekt" @cancel="showAnalogObjektAnlegen = false" />
     <MessageDialog v-if="showDeleteDialog" title="Ausgewählte Dateien wirklich löschen?"
       message="Sollen die gewählten Dateien wirklich gelöscht werden?" @confirm="deleteConfirmed"
       @cancel="showDeleteDialog = false" confirm-text="Löschen" />
@@ -129,7 +148,6 @@ import StoragePathDialog from "@/components/StoragePathDialog.vue";
 import AnalogObjektAnlegen from "./AnalogObjektAnlegen.vue";
 import MessageDialog from "./MessageDialog.vue";
 export default {
-
   components: {
     AnalogObjektAnlegen,
     CardComponent,
@@ -141,18 +159,44 @@ export default {
   data() {
     return {
       archivObjekt: {
-        abJahr: 0,
-        analogNummer: "",
-        bisJahr: 0,
-        dokumentDatum: "",
-        gesperrt: false,
-        gesperrtBis: 0,
-        kurztitel: "",
-        ort_id: 0,
+        id: null,
+        zeitraum_start: null,
+        start_ergaenzung: null,
+        zeitraum_ende: null,
+        ende_ergaenzung: null,
+        titel: "",
+        beschreibung: "",
+        ort_id: 4,
         dateiPfad: "",
+        analogObjekte: [],
+        dateien: [],
+      },
+      analogObjekt: {
+        id: null,
+        archiv_id: "",
+        objekttyp_id: 1,
+        seiten: null,
+        quellen_id: 0,
+        gesperrt: false,
+        gesperrt_bis: (parseInt(new Date().toISOString().substring(0, 4)) + 25).toString(),
+        lagerort_id: 1,
+        regal_id: null,
+        fach_id: null,
+        platz_id: null,
+        digitalisiert: 2
+      },
+      datei: {
+        pfad: "",
+        dateiname: "",
+        objekttyp_id: 1,
+        quellen_id: 0,
+        gesperrt: false,
+        gesperrt_bis: (parseInt(new Date().toISOString().substring(0, 4)) + 25).toString(),
+        dateidatum: null,
       },
       analogTitel: "",
       eingang: [],
+      kurztitel: "",
       orte: [],
       saveMode: 0,
       selectedFiles: {},
@@ -167,22 +211,22 @@ export default {
 
     speicherpfad() {
       let parts = [];
-      if (this.archivObjekt.gesperrt)
+      if (this.datei.gesperrt)
         parts.push("ZYX");
       if (this.archivObjekt.dokumentDatum) {
         parts.push(this.formatDokumentDatum(this.archivObjekt.dokumentDatum));
-      } else if (this.archivObjekt.abJahr || this.archivObjekt.bisJahr) {
-        let von = this.archivObjekt.abJahr || "0000";
-        let bis = this.archivObjekt.bisJahr || von;
+      } else if (this.archivObjekt.zeitraum_start || this.archivObjekt.zeitraum_ende) {
+        let von = this.archivObjekt.zeitraum_start || "0000";
+        let bis = this.archivObjekt.zeitraum_ende || von;
         parts.push(`${von}bis${bis}`);
       }
-      if (this.archivObjekt.kurztitel) {
-        parts.push(this.makeFilename(this.archivObjekt.kurztitel));
+      if (this.kurztitel) {
+        parts.push(this.makeFilename(this.kurztitel));
       }
-      if (this.archivObjekt.analogNummer) {
-        parts.push(this.makeFilename(this.archivObjekt.analogNummer));
+      if (this.analogObjekt.archiv_id) {
+        parts.push(this.makeFilename(this.analogObjekt.archiv_id.toString()));
       }
-      if (this.archivObjekt.ort_id !== 0) {
+      if (this.archivObjekt.ort_id !== 0 && this.orte.length > 0) {
         const ortsname = this.orte.find(ort => { return ort.id === this.archivObjekt.ort_id })?.name
         parts.push(ortsname.substr(0, 2))
       }
@@ -192,19 +236,52 @@ export default {
       return (this.storeBasePath + this.selectedSpeicherpfad).split("/").length > 1 && this.archivObjekt.kurztitel.length > 3
     }
   },
-  async mounted() {
+  watch: {
+    "archivObjekt.titel"(neu, alt) {
+      if (this.kurztitel === "" || this.kurztitel === alt) {
+        this.kurztitel = neu;
+      }
+    }
+  },
+  async created() {
     const orte = await this.$axios.get("/Orte/getAll");
     this.orte = orte.data.data
+  },
+  async mounted() {
     this.refreshTree()
     this.$refs.ortInput.focus()
   },
   methods: {
     async analogObjektExists() {
-      this.analogTitel = ""
-      if (this.archivObjekt.analogNummer.length > 4) {
-        const existResponse = await this.$axios.get("/Analogobjekte/getByArchivId/" + this.archivObjekt.analogNummer)
+      this.archivObjekt.titel = ""
+      if (this.analogObjekt.archiv_id.length > 4) {
+        const existResponse = await this.$axios.get("/Analogobjekte/getByArchivId/" + this.analogObjekt.archiv_id)
         if (existResponse.data.data.length > 0) {
-          this.analogTitel = existResponse.data.data[0].titel
+          let an = existResponse.data.data[0]
+          this.analogObjekt = {
+            id: an.an_id,
+            archiv_id: an.archiv_id,
+            objekttyp_id: an.objekttyp_id,
+            seiten: an.seiten,
+            titel: an.titel,
+            beschreibung: an.beschreibung,
+            quellen_id: an.quellen_id,
+            gesperrt: an.gesperrt,
+            gesperrt_bis: an.gesperrt_bis,
+            lagerort_id: an.lagerort_id,
+            regal_id: an.regal_id,
+            fach_id: an.fach_id,
+            platz_id: an.platz_id,
+            digitalisiert: an.digitalisiert
+          };
+          this.archivObjekt.id = an.ao_id
+          this.archivObjekt.ort_id = an.ort_id
+          this.archivObjekt.titel = an.titel
+          this.archivObjekt.beschreibung = an.beschreibung
+          this.archivObjekt.zeitraum_start = an.zeitraum_start
+          this.archivObjekt.start_ergaenzung = an.start_ergaenzung
+          this.archivObjekt.zeitraum_ende = an.zeitraum_ende
+          this.archivObjekt.ende_ergaenzung = an.ende_ergaenzung
         }
       }
     },
@@ -229,6 +306,10 @@ export default {
       }
 
       return result;
+    },
+    createAnalogObjekt(objekt) {
+      this.analogObjekt = objekt
+      this.showAnalogObjektAnlegen = false;
     },
     async deleteConfirmed() {
       this.showDeleteDialog = false
@@ -337,6 +418,11 @@ export default {
 <style scoped>
 .file-select-color {
   background-color: azure;
+}
+
+.large-switch {
+  transform: scale(1.4);
+  transform-origin: left center;
 }
 
 .own-color {

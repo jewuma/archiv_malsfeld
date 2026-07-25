@@ -1,5 +1,5 @@
 <template>
-  <div class="col-md-3">
+  <div class="col-md-3 position-relative">
     <MessageDialog v-if="showModal" :message="dialogMessage" @confirm="neuesSchlagwortAnlegen" :title="dialogTitle"
       @cancel="showModal = false" /> <label class="form-label">Schlagworte</label>
     <input class="form-control" v-model="schlagwortSuche" @input="filterSchlagworte" @keydown.down.prevent="naechster"
@@ -11,11 +11,13 @@
       </div>
     </div>
   </div>
-  <div class="col-12">
-    <span v-for="wort in lokal" :key="wort.id" class="badge bg-primary me-2 mb-2">
-      {{ wort.bezeichnung }}
-      <span class="ms-1" style="cursor:pointer" @click="removeSchlagwort(wort.id)">×</span>
-    </span>
+  <div class="col-md-3 d-flex align-items-end">
+    <div>
+      <span v-for="wort in lokal" :key="wort.id" class="badge bg-primary me-2 mb-2">
+        {{ wort.bezeichnung }}
+        <span class="ms-1" style="cursor:pointer" @click="removeSchlagwort(wort.id)">×</span>
+      </span>
+    </div>
   </div>
 </template>
 <script>

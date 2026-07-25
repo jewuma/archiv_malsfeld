@@ -17,6 +17,7 @@ export default {
     return {
       fields: [
         { name: 'id', label: 'ID', type: 'text', readonly: true, width: '80px', hidden: true },
+        { name: 'archiv_id', label: 'ArchivID', type: 'text', readonly: true, width: '80px' },
         { name: 'objekttyp', label: 'Typ', type: 'text', 'width': '130px' },
         { name: 'seiten', label: 'Seiten', type: 'text', width: '80px' },
         { name: 'lagerort', label: 'Lagerort', type: 'text', 'width': '150px' },

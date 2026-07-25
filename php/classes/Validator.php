@@ -6,15 +6,36 @@ class Validator {
   private static function isValidDateTime(string $value, string $format): bool {
     $date = \DateTime::createFromFormat($format, $value);
     $errors = \DateTime::getLastErrors();
-    return $errors === false;
+    return $errors === false && $date !== false;
   }
   public static function validateJsonAgainstSchema(string $jsonData, array $schema): array {
     $data = json_decode($jsonData, true);
     if (json_last_error() !== JSON_ERROR_NONE) {
       throw new \Exception("Ungültiges JSON.", 400);
     }
+    $optionalObjects = [];
+    $exists = false;
+    foreach ($schema as $path => $definition) {
+      if (is_string($definition) && str_starts_with($definition, "object")) {
+        if (self::hasWildcard($path)) {
+          $matches = self::getWildcardMatches($data, $path);
+          $exists = count($matches) > 0;
+        } else {
+          $exists = false;
+          self::getValue($data, $path, $exists);
+        }
 
+        if (!$exists && str_contains($definition, "optional")) {
+          $optionalObjects[] = $path;
+        }
+      }
+    }
     foreach ($schema as $key => $definition) {
+      foreach ($optionalObjects as $object) {
+        if (str_starts_with($key . ".", $object . ".")) {
+          continue 2;
+        }
+      }
       $isOptional = false;
       $isEmptyOK = false;
       // Support für den Select-Typ
@@ -23,162 +44,258 @@ class Validator {
         $expectedType = "select";
         $allowedValues = $definition[1];
       } else {
-        $definitions = explode(",", $definition);
-        $expectedType = array_shift($definitions);
-        while (count($definitions)) {
-          $option = array_shift($definitions);
-          if ($option === "optional") $isOptional = true;
-          if ($option === "emptyOK") $isEmptyOK = true;
-        }
-        $expectedType = explode(",", $definition)[0];
-        $options =
-          $isOptional = strpos($definition, "optional") !== false;
-      }
+        $parts = explode(',', $definition);
 
-      // Pflichtfeld prüfen
-      if (!array_key_exists($key, $data)) {
-        if ($isOptional) {
-          continue;
-        } else {
+        $expectedType = trim(array_shift($parts));
+
+        $isOptional = in_array('optional', $parts, true);
+        $isEmptyOK  = in_array('emptyOK', $parts, true);
+      }
+      $keysToValidate = [];
+      if (self::hasWildcard($key)) {
+        $matches = self::getWildcardMatches($data, $key);
+
+        if (count($matches) === 0) {
+          if ($isOptional) {
+            continue;
+          }
           throw new \Exception("Fehlender Parameter $key", 400);
         }
+
+        foreach ($matches as $match) {
+          $keysToValidate[] = $match["path"];
+        }
+      } else {
+        $exists = false;
+        self::getValue($data, $key, $exists);
+        if (!$exists) {
+          if ($isOptional) {
+            continue;
+          } else {
+            throw new \Exception("Fehlender Parameter $key", 400);
+          }
+        }
+        $keysToValidate[] = $key;
       }
 
-      $value = $data[$key];
-      if ($isEmptyOK && $value === "") continue;
-      switch ($expectedType) {
-        case "array":
-          if (!is_array($value)) {
-            throw new \Exception("Ungültiger Datentyp für $key. Erwartet: array.");
-          }
-          break;
+      foreach ($keysToValidate as $resolvedKey) {
+        $exists = false;
+        $value = self::getValue($data, $resolvedKey, $exists);
+        if ($isEmptyOK && $value === "") {
+          continue;
+        }
 
-        case "base64":
-          if (!is_string($value)) {
-            throw new \Exception("Ungültiger Datentyp für $key. Erwartet: base64-kodierter String.");
-          }
-          $decodedValue = base64_decode($value, true);
-          if ($decodedValue === false) {
-            throw new \Exception("Ungültiger base64-kodierter String für $key.");
-          }
-          $data[$key] = $decodedValue;
-          break;
-        case "integer":
-          if (!is_numeric($value)) {
-            throw new \Exception("Ungültiger Datentyp für $key. Erwartet: integer.");
-          }
-          $data[$key] = (int) $value;
-          break;
+        switch ($expectedType) {
+          case "array":
+            if (!is_array($value)) {
+              throw new \Exception("Ungültiger Datentyp für $resolvedKey. Erwartet: array.");
+            }
+            break;
 
-        case "boolean":
-          $value = (bool)$value;
-          $data[$key] = $value;
-          break;
+          case "base64":
+            if (!is_string($value)) {
+              throw new \Exception("Ungültiger Datentyp für $resolvedKey. Erwartet: base64-kodierter String.");
+            }
+            $decodedValue = base64_decode($value, true);
+            if ($decodedValue === false) {
+              throw new \Exception("Ungültiger base64-kodierter String für $resolvedKey.");
+            }
+            self::setValue($data, $resolvedKey, $decodedValue);
+            break;
+          case "integer":
+            if (!is_numeric($value)) {
+              throw new \Exception("Ungültiger Datentyp für $resolvedKey. Erwartet: integer.");
+            }
 
-        case "date":
-          if (!self::isValidDateTime($value, "Y-m-d")) {
-            throw new \Exception("Ungültiges Datumsformat für $key. Erwartet: YYYY-MM-DD.");
-          }
-          break;
+            self::setValue($data, $resolvedKey, (int) $value);
+            break;
 
-        case "datetime":
-          if (!self::isValidDateTime($value, "Y-m-d\TH:i")) {
-            throw new \Exception("Ungültiges Datums-Zeit-Format für $key. Erwartet: YYYY-MM-DDTHH:MM.");
-          }
-          break;
+          case "boolean":
+            $value = (bool)$value;
+            self::setValue($data, $resolvedKey, $value);
+            break;
 
-        case "month":
-          if (!is_numeric($value)) {
-            throw new \Exception("Ungültiger Monat für $key.");
-          }
-          $value = (int) $value;
-          if ($value < 1 || $value > 12) {
-            throw new \Exception("Ungültiger Monat für $key. Erlaubt: 1-12.");
-          }
-          $data[$key] = $value;
-          break;
+          case "date":
+            if (!self::isValidDateTime($value, "Y-m-d")) {
+              throw new \Exception("Ungültiges Datumsformat für $resolvedKey. Erwartet: YYYY-MM-DD.");
+            }
+            break;
 
-        case "float":
-          if (!is_numeric($value)) {
-            throw new \Exception("Ungültiger Datentyp für $key. Erwartet: Zahl.");
-          }
-          $value = (float) $value;
-          $data[$key] = $value;
-          break;
+          case "datetime":
+            if (!self::isValidDateTime($value, "Y-m-d\\TH:i")) {
+              throw new \Exception("Ungültiges Datums-Zeit-Format für $resolvedKey. Erwartet: YYYY-MM-DDTHH:MM.");
+            }
+            break;
 
-        case "select":
-          if (!in_array($value, $allowedValues, true)) {
-            $allowedList = implode(", ", $allowedValues);
-            throw new \Exception("Ungültiger Wert für $key. Erlaubt: $allowedList.");
-          }
-          break;
-        case "string":
-          if (!is_string($value) && !is_numeric($value)) {
-            throw new \Exception("Ungültiges Format - kein String");
-          }
-          break;
+          case "month":
+            if (!is_numeric($value)) {
+              throw new \Exception("Ungültiger Monat für $resolvedKey.");
+            }
+            $value = (int) $value;
+            if ($value < 1 || $value > 12) {
+              throw new \Exception("Ungültiger Monat für $resolvedKey. Erlaubt: 1-12.");
+            }
+            self::setValue($data, $resolvedKey, $value);
+            break;
 
-        case "time":
-          if (!self::isValidDateTime($value, "H:i")) {
-            throw new \Exception("Ungültiges Zeitformat für $key. Erwartet: HH:MM.");
-          }
-          break;
+          case "float":
+            if (!is_numeric($value)) {
+              throw new \Exception("Ungültiger Datentyp für $resolvedKey. Erwartet: Zahl.");
+            }
+            $value = (float) $value;
+            self::setValue($data, $resolvedKey, $value);
+            break;
+          case "object":
+            if (!is_array($value)) {
+              throw new \Exception("Ungültiger Datentyp für $resolvedKey. Erwartet: Objekt.");
+            }
+            break;
+          case "select":
+            if (!in_array($value, $allowedValues, true)) {
+              $allowedList = implode(", ", $allowedValues);
+              throw new \Exception("Ungültiger Wert für $resolvedKey. Erlaubt: $allowedList.");
+            }
+            break;
+          case "string":
+            if (!is_string($value) && !is_numeric($value)) {
+              throw new \Exception("Ungültiges Format - kein String");
+            }
+            break;
 
-        case "year":
-          if (!is_numeric($value)) {
-            throw new \Exception("Ungültiges Jahr für $key.");
-          }
-          $value = (int) $value;
-          // Optional: dynamische Begrenzung
-          $currentYear = (int) date("Y");
-          if ($value < 1900 || $value > $currentYear + 5) {
-            throw new \Exception("Ungültiges Jahr für $key.");
-          }
-          $data[$key] = $value;
-          break;
+          case "time":
+            if (!self::isValidDateTime($value, "H:i")) {
+              throw new \Exception("Ungültiges Zeitformat für $resolvedKey. Erwartet: HH:MM.");
+            }
+            break;
 
-        case "filename":
-          if (!is_string($value)) {
-            throw new \Exception("Ungültiger Dateiname für $key.");
-          }
+          case "year":
+            if (!is_numeric($value)) {
+              throw new \Exception("Ungültiges Jahr für $resolvedKey.");
+            }
+            $value = (int) $value;
+            // Optional: dynamische Begrenzung
+            $currentYear = (int) date("Y");
+            if ($value < 1900 || $value > $currentYear + 5) {
+              throw new \Exception("Ungültiges Jahr für $resolvedKey.");
+            }
+            self::setValue($data, $resolvedKey, $value);
+            break;
 
-          // Nur Dateiname erlauben (kein Pfad)
-          if (basename($value) !== $value) {
-            throw new \Exception("Pfadangaben sind im Dateinamen nicht erlaubt.");
-          }
+          case "filename":
+            if (!is_string($value)) {
+              throw new \Exception("Ungültiger Dateiname für $resolvedKey.");
+            }
 
-          // Keine Verzeichnis-Traversal
-          if (str_contains($value, "..")) {
-            throw new \Exception("Ungültiger Dateiname.");
-          }
+            // Nur Dateiname erlauben (kein Pfad)
+            if (basename($value) !== $value) {
+              throw new \Exception("Pfadangaben sind im Dateinamen nicht erlaubt.");
+            }
 
-          // Optional: nur bestimmte Zeichen erlauben
-          if (!preg_match('/^[ a-zA-ZÄÖÜääöüß0-9.,_-]+$/', $value)) {
-            throw new \Exception("Dateiname enthält ungültige Zeichen.");
-          }
+            // Keine Verzeichnis-Traversal
+            if (str_contains($value, "..")) {
+              throw new \Exception("Ungültiger Dateiname.");
+            }
 
-          $data[$key] = $value;
-          break;
-        case "fileContent":
-          if (!is_string($value)) {
-            throw new \Exception("Ungültiger Dateinhalt für $key.");
-          }
-          // Optional: Maximale Größe des Inhalts prüfen (z.B. 5 MB)
-          $maxSize = 5 * 1024 * 1024; // 5 MB
-          if (strlen($value) > $maxSize) {
-            throw new \Exception("Dateinhalt für $key ist zu groß. Maximal erlaubt: 5 MB.");
-          }
-          $decodedContent = base64_decode($value, true);
-          if ($decodedContent === false) {
-            throw new \Exception("Ungültiger Base64-kodierter Inhalt für $key.");
-          }
-          $data[$key] = $decodedContent;
-          break;
-        default:
-          throw new \Exception("Unbekannter Typ '$expectedType' für $key im Schema.");
+            // Optional: nur bestimmte Zeichen erlauben
+            if (!preg_match('/^[ a-zA-ZÄÖÜääöüß0-9.,_-]+$/', $value)) {
+              throw new \Exception("Dateiname enthält ungültige Zeichen.");
+            }
+
+            self::setValue($data, $resolvedKey, $value);
+            break;
+          case "fileContent":
+            if (!is_string($value)) {
+              throw new \Exception("Ungültiger Dateinhalt für $resolvedKey.");
+            }
+            // Optional: Maximale Größe des Inhalts prüfen (z.B. 5 MB)
+            $maxSize = 5 * 1024 * 1024; // 5 MB
+            if (strlen($value) > $maxSize) {
+              throw new \Exception("Dateinhalt für $resolvedKey ist zu groß. Maximal erlaubt: 5 MB.");
+            }
+            $decodedContent = base64_decode($value, true);
+            if ($decodedContent === false) {
+              throw new \Exception("Ungültiger Base64-kodierter Inhalt für $resolvedKey.");
+            }
+            self::setValue($data, $resolvedKey, $decodedContent);
+            break;
+          default:
+            throw new \Exception("Unbekannter Typ '$expectedType' für $resolvedKey im Schema.");
+        }
       }
     }
     return $data;
+  }
+  private static function hasWildcard(string $path): bool {
+    return str_contains($path, "*");
+  }
+  private static function getWildcardMatches(array $data, string $path): array {
+    $parts = explode('.', $path);
+    $matches = [];
+
+    self::collectWildcardMatches($data, $parts, 0, [], $matches);
+
+    return $matches;
+  }
+  private static function collectWildcardMatches(mixed $current, array $parts, int $index, array $resolvedParts, array &$matches): void {
+    if ($index >= count($parts)) {
+      $matches[] = [
+        "path" => implode('.', $resolvedParts),
+        "value" => $current
+      ];
+      return;
+    }
+
+    $part = $parts[$index];
+
+    if ($part === "*") {
+      if (!is_array($current)) {
+        return;
+      }
+
+      foreach ($current as $childKey => $childValue) {
+        $nextParts = $resolvedParts;
+        $nextParts[] = (string)$childKey;
+        self::collectWildcardMatches($childValue, $parts, $index + 1, $nextParts, $matches);
+      }
+      return;
+    }
+
+    if (!is_array($current) || !array_key_exists($part, $current)) {
+      return;
+    }
+
+    $resolvedParts[] = $part;
+    self::collectWildcardMatches($current[$part], $parts, $index + 1, $resolvedParts, $matches);
+  }
+  private static function getValue(array $data, string $path, &$exists = false) {
+    $parts = explode('.', $path);
+
+    foreach ($parts as $part) {
+      if (!is_array($data) || !array_key_exists($part, $data)) {
+        $exists = false;
+        return null;
+      }
+
+      $data = $data[$part];
+    }
+
+    $exists = true;
+    return $data;
+  }
+  private static function setValue(array &$data, string $path, mixed $value): void {
+    $parts = explode('.', $path);
+
+    $ref = &$data;
+
+    foreach ($parts as $part) {
+      if (!isset($ref[$part]) || !is_array($ref[$part])) {
+        $ref[$part] = [];
+      }
+
+      $ref = &$ref[$part];
+    }
+
+    $ref = $value;
   }
   public static function validateFileUpload(array $fileTypes, int $maxSize, string $inputName): array {
     if (!isset($_FILES[$inputName])) {
@@ -229,18 +346,40 @@ class Validator {
   }
 }
 // Beispielverwendung
-// $json = '{"clientId": 123, "fromTime": "28:00", "toTime": "2025-03-15 17:00:00", "id": 1}';
 // $schema = [
-//   "clientId" => "integer",
-//   "fromTime" => "time",
-//   "toTime" => "time",
-//   "id" => "integer",
-//   "optionaleVariabe" => "date,optional"
-// ];
+//   "archivobjekt.ort_id"       => "integer",
+//   "archivobjekt.status"       => "integer",
+//   "archivobjekt.beschreibung" => "string,optional",
+//   "datei"                     => "object,optional",
+//   "datei.*.pfad"              => "string",
+//   "datei.*.originalname"      => "filename",
 
-// try {
-//   $result = Validator::validateJsonAgainstSchema($json, $schema);
-//   echo "JSON ist gültig. Ergebnis: " . print_r($result, true);
-// } catch (\Exception $e) {
-//   echo "Fehler: " . $e->getMessage();
-// }
+//   "analogobjekt.modus"        => ["select", ["neu", "vorhanden", "keines"]],
+//   "analogobjekt.id"           => "integer,optional",
+//   "analogobjekt.objekttyp_id" => "integer,optional"
+// ];
+// $json = '{
+//     "archivobjekt": {
+//         "ort_id": 5,
+//         "status": 1,
+//         "beschreibung": "Ein Beispielobjekt"
+//     },
+//     "datei": [
+//         {
+//             "pfad": "/uploads/beisp:iel.pdf",
+//             "originalname": "beispiel.pdf"
+//         },
+//         {
+//             "pfad": "/uploads/beispiel2.pdf",
+//             "originalname": "beispiel2.pdf"
+//         }
+//     ],
+//     "analogobjekt": {
+//         "modus": "neu",
+//         "id": 42,
+//         "objekttyp_id": 3
+//     }
+// }';
+
+// $result = Validator::validateJsonAgainstSchema($json, $schema);
+// print_r($result);

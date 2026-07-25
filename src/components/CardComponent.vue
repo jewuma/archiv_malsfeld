@@ -41,7 +41,7 @@
         <div v-if="fields.length > 0" class="mt-3">
           <div class="row">
 
-            <!-- Tabelle -->file
+            <!-- Tabelle -->
             <div class="col-12">
               <TableComponent ref="childTable" :fields="fields" :filterOptions="filterOptions" :table-data="tableData"
                 :highlight="highlight" @row-selected="rowSelected" @edit="rowEdited" @action="onAction"
@@ -195,11 +195,32 @@ export default {
     onAction(event) {
       this.$emit('action', event)
     },
+    onDrag(e) {
+      if (!this.dragging) return
+
+      this.posX = e.clientX - this.offsetX
+      this.posY = e.clientY - this.offsetY
+    },
     rowSelected(row) {
       this.$emit("row-selected", row);
     },
     rowEdited(rowInfo) {
       this.$emit("edit", rowInfo);
+    },
+    startDrag(e) {
+      if (!this.showAsModal) return
+
+      this.dragging = true
+      this.offsetX = e.clientX - this.posX
+      this.offsetY = e.clientY - this.posY
+
+      document.addEventListener("mousemove", this.onDrag)
+      document.addEventListener("mouseup", this.stopDrag)
+    },
+    stopDrag() {
+      this.dragging = false
+      document.removeEventListener("mousemove", this.onDrag)
+      document.removeEventListener("mouseup", this.stopDrag)
     },
     toggleExpand(row) {
       this.$emit("toggle-expand", row)

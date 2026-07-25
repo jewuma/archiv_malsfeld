@@ -2,10 +2,10 @@
   <div class="dashboard">
 
     <!-- Hauptkennzahlen -->
-    <div class="row g-3 mb-4">
+    <div class="row g-2 mb-3">
 
       <div class="col-md-4 col-lg-3">
-        <StatCard title="Archivobjekte" :value="stats.archivobjekte" icon="bi-archive" />
+        <StatCard title="Archivobjekte" :value="stats.archivobjekte" icon="bi-archive" variant="secondary" />
       </div>
 
       <div class="col-md-4 col-lg-3">
@@ -17,7 +17,7 @@
       </div>
 
       <div class="col-md-4 col-lg-3">
-        <StatCard title="Analoge Objekte" :value="stats.analog" icon="bi-book" />
+        <StatCard title="Analoge Objekte" :value="stats.analog" icon="bi-book" variant="warning" />
       </div>
 
       <div class="col-md-4 col-lg-3">
@@ -29,30 +29,30 @@
 
     <!-- Orte -->
     <div class="card shadow-sm">
-      <div class="card-header bg-white">
+      <div class="card-header bg-light border-bottom">
         <h5 class="mb-0">
-          <i class="bi bi-geo-alt"></i>
+          <i class="bi bi-geo-alt" style="color: #0d6efd;"></i>
           Verteilung nach Ort
         </h5>
       </div>
 
-      <div class="card-body">
+      <div class="card-body pb-2">
 
-        <div class="row g-3">
+        <div class="row g-2">
 
-          <div v-for="ort in stats.orte" :key="ort.name" class="col-md-4 col-lg-3">
-            <div class="ort-card">
+          <div v-for="(ort, index) in stats.orte" :key="ort.name" class="col-md-4 col-lg-3">
+            <div class="ort-card" :style="{ borderLeftColor: getColor(index) }">
 
               <div class="ort-name">
                 {{ ort.name }}
               </div>
 
-              <div class="ort-value">
-                {{ ort.anzahl }}
+              <div class="ort-value" :style="{ color: getColor(index) }">
+                {{ ort.anzahl.toLocaleString('de-DE') }}
               </div>
 
-              <div class="progress mt-2">
-                <div class="progress-bar" :style="{ width: ort.prozent + '%' }"></div>
+              <div class="progress mt-2" style="height: 4px;">
+                <div class="progress-bar" :style="{ width: ort.prozent + '%', backgroundColor: getColor(index) }"></div>
               </div>
 
             </div>
@@ -80,9 +80,17 @@ export default {
 
   data() {
     return {
-      stats: {}
+      stats: {},
+      colors: ['#0d6efd', '#198754', '#0dcaf0', '#ffc107', '#dc3545', '#6f42c1', '#fd7e14', '#20c997']
     }
   },
+
+  methods: {
+    getColor(index) {
+      return this.colors[index % this.colors.length]
+    }
+  },
+
   async created() {
     const statResponse = await this.$axios.get("/Archiv/getStats")
     this.stats = statResponse.data.data
@@ -93,26 +101,33 @@ export default {
 
 <style scoped>
 .dashboard {
-  padding: 1rem;
+  padding: 0.75rem;
 }
-
 
 .ort-card {
-  border: 1px solid #dee2e6;
-  border-radius: .75rem;
-  padding: 1rem;
-  background: #fff;
+  border: 1px solid #e9ecef;
+  border-left: 4px solid #0d6efd;
+  border-radius: 0.5rem;
+  padding: 0.75rem;
+  background: #f8f9fa;
+  transition: all 0.2s;
 }
 
+.ort-card:hover {
+  background: #fff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
 
 .ort-name {
-  font-size: .9rem;
+  font-size: 0.8rem;
   color: #6c757d;
+  font-weight: 500;
+  margin-bottom: 0.25rem;
 }
 
-
 .ort-value {
-  font-size: 2rem;
-  font-weight: 600;
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #0d6efd;
 }
 </style>

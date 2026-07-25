@@ -14,7 +14,7 @@ class Archiv
   {
     $this->db = ArchivDb::getDbInstance();
   }
-  public function getAnalogobjects($id): JsonResponse
+  public function getAnalogobjects(int $id): JsonResponse
   {
     $id = (int) $id;
     if (!$id) {
@@ -22,6 +22,7 @@ class Archiv
     }
     $sql = "SELECT 
       an.id,
+      an.archiv_id,
       ob.bezeichnung as objekttyp,
       an.seiten,
       la.bezeichnung as lagerort,
@@ -42,7 +43,7 @@ class Archiv
       WHERE archivobjekt_id=?";
     return ArchivDb::preparedWebQuery($sql, [$id]);
   }
-  public function getFileobjects($id): JsonResponse
+  public function getFileobjects(int $id): JsonResponse
   {
     $id = (int) $id;
     if (!$id) {
@@ -99,7 +100,12 @@ class Archiv
       "ort_id" => "integer,optional",
       "startJahr" => "integer,optional",
       "endJahr" => "integer,optional",
-      "suchbegriff" => "string,optional"
+      "suchbegriff" => "string,optional",
+      "beschreibung" => "string,optional",
+      "archivstatus" => "integer,optional",
+      "objekttyp_id" => "integer,optional",
+      "analog_archiv_id" => "integer,optional",
+      "digitalisiert_ohne_datei" => "boolean,optional"
     ]);
     $schlagwortWhere = "";
     if (isset($param["schlagworte_ids"]) && count($param["schlagworte_ids"]) > 0) {
@@ -111,6 +117,45 @@ class Archiv
     }
     $ortWhere = isset($param["ort_id"]) ? "AND ao.ort_id = " . $param["ort_id"] : "";
     $suchbegriff = isset($param["suchbegriff"]) && !empty($param["suchbegriff"]) ? "%" . $param["suchbegriff"] . "%" : null;
+    $beschreibungWhere = "";
+    if (isset($param["beschreibung"])) {
+      if ($param["beschreibung"] === "ja") {
+        $beschreibungWhere = "AND TRIM(COALESCE(ao.beschreibung, '')) <> ''";
+      }
+      if ($param["beschreibung"] === "nein") {
+        $beschreibungWhere = "AND TRIM(COALESCE(ao.beschreibung, '')) = ''";
+      }
+    }
+    $statusWhere = isset($param["archivstatus"]) ? "AND ao.status = " . $param["archivstatus"] : "";
+    $objekttypWhere = isset($param["objekttyp_id"])
+      ? "AND (
+        EXISTS (
+          SELECT 1 FROM analogobjekte an3
+          WHERE an3.archivobjekt_id = ao.id
+          AND an3.objekttyp_id = " . $param["objekttyp_id"] . "
+        )
+        OR EXISTS (
+          SELECT 1 FROM dateien df2
+          WHERE df2.archivobjekt_id = ao.id
+          AND df2.objekttyp_id = " . $param["objekttyp_id"] . "
+        )
+      )"
+      : "";
+    $analogArchivIdWhere = isset($param["analog_archiv_id"])
+      ? "AND EXISTS (
+        SELECT 1 FROM analogobjekte an4
+        WHERE an4.archivobjekt_id = ao.id
+        AND an4.archiv_id = " . $param["analog_archiv_id"] . "
+      )"
+      : "";
+    $digitalisiertOhneDateiWhere = !empty($param["digitalisiert_ohne_datei"])
+      ? "AND COALESCE(df.anzahl, 0) = 0
+      AND EXISTS (
+        SELECT 1 FROM analogobjekte an2
+        WHERE an2.archivobjekt_id = ao.id
+        AND an2.digitalisiert = 1
+      )"
+      : "";
     $sql = "SELECT
     ao.id,
     ao.titel,
@@ -141,6 +186,11 @@ class Archiv
     WHERE 1 
     $schlagwortWhere 
     $ortWhere
+    $beschreibungWhere
+    $statusWhere
+    $objekttypWhere
+    $analogArchivIdWhere
+    $digitalisiertOhneDateiWhere
     AND (:startJahr IS NULL OR ao.zeitraum_start >= :startJahr)
     AND (:endJahr IS NULL OR ao.zeitraum_ende <= :endJahr)
     AND (:suchbegriff IS NULL
@@ -171,6 +221,24 @@ class Archiv
         "dateiPfad" => "string",
       ]
     );
+    $sql="INSERT INTO archivobjekte (ort_id,zeitraum_start, zeitraum_ende, titel, `status`, archivdatum)
+      VALUES (:ort_id, :abJahr, :bisJahr, :kurztitel, 1, NOW())";
+    $this->db->beginTransaction();
+    $this->db->prepare($sql)->execute([
+      ":ort_id" => $param["ort_id"],
+      ":abJahr" => $param["abJahr"] ?? null,
+      ":bisJahr" => $param["bisJahr"] ?? null,
+      ":kurztitel" => $param["kurztitel"],
+    ]);
+    $archivObjektId = (int) $this->db->lastInsertId();
+    $analogSql = "INSERT INTO analogobjekte (archivobjekt_id, archiv_id, dokumentendatum, digitalisiert, archivdatum)
+      VALUES (:archivobjekt_id, :analogNummer, :dokumentDatum, 0, NOW())";
+    $this->db->prepare($analogSql)->execute([
+      ":archivobjekt_id" => $archivObjektId,
+      ":analogNummer" => $param["analogNummer"] ?? null,
+      ":dokumentDatum" => $param["dokumentDatum"] ?? null,
+    ]);
+    $this->db->commit();
     return new JsonResponse(200, $param);
   }
 }

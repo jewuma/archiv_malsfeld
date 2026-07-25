@@ -15,3 +15,4 @@ define("DB_PASSWORD", $config["database"]["pass"]);
 define("DB_NAME", $config["database"]["name"]);
 define("DEBUG", $config["debug"]);
 define("CLIENT_DATA", $config["client_data"]);
+define("ARCHIV_FILE_PATH", $config["archivfilepath"]["path"]);

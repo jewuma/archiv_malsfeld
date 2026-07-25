@@ -1,9 +1,11 @@
 <template>
   <div>
     <div class="tree-node" @click="clicked">
-      <input v-if="selectable && node.type == 'file'" type="checkbox" v-model="selected" :value="node.path"
-        @change="fileSelected(node.path, selected)" />
-      <span v-if="hasChildren" class="toggle">
+
+      <input v-if="selectable" type="checkbox" :checked="node.selected" @click.stop
+        @change="checkboxChanged($event.target.checked)">
+
+      <span v-if="hasChildren" class="toggle ms-2">
         {{ open ? "▼" : "▶" }}
       </span>
       <span v-else-if="node.type === 'directory'" class="toggle-space"></span>
@@ -19,14 +21,15 @@
     <div v-if="open" class="children">
       <TreeNode v-for="child in node.children" :key="child.path" :node="child" :siblings="node.children"
         :search="search" :selectable="selectable" @select="$emit('select', $event)" @preview="preview" @move-up="moveUp"
-        @move-down="moveDown" @load-children="loadChildren" @file-selected="fileSelected" />
+        @move-down="moveDown" @load-children="loadChildren" @file-selected="fileSelected"
+        @folder-selected="forwardFolderSelected" />
     </div>
   </div>
 </template>
 <script>
 export default {
   name: "TreeNode",
-  emits: ["move-up", "move-down", "select", "preview", "file-selected"],
+  emits: ["move-up", "move-down", "select", "preview", "file-selected", "folder-selected"],
   props: {
     node: {
       type: Object,
@@ -48,7 +51,6 @@ export default {
   data() {
     return {
       open: true,
-      selected: false,
     }
   },
   computed: {
@@ -119,9 +121,16 @@ export default {
     preview(node) {
       this.$emit("preview", node)
     },
-    fileSelected(nodePath, value) {
-      this.$emit("file-selected", nodePath, value);
-    }
+    checkboxChanged(isSelected) {
+      if (this.node.type === 'file') {
+        this.$emit("file-selected", this.node.path, isSelected);
+      } else if (this.node.type === 'directory') {
+        this.$emit("folder-selected", this.node, isSelected);
+      }
+    },
+    forwardFolderSelected(node, value) {
+      this.$emit("folder-selected", node, value);
+    },
   }
 
 

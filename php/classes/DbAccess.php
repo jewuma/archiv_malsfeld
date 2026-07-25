@@ -5,9 +5,11 @@ namespace own;
 use own\ArchivDb;
 use own\JsonResponse;
 
+require_once __DIR__ . "/../.clientData.inc.php";
+
 class DbAccess {
   protected \PDO $db;
-  public const STORAGE_DIR = __DIR__ . "/../../storage/";
+  public const STORAGE_DIR = ARCHIV_FILE_PATH;
   public function __construct() {
     $this->db = ArchivDb::getDbInstance();
   }
