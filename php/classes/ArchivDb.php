@@ -91,12 +91,25 @@ class ArchivDb {
         return (float) $value;
 
       case "date":
-      case "datetime":
         // Datum/Uhrzeit-Werte umwandeln
         if ($value == "") {
           return null;
         }
-        return date("Y-m-d H:i:s", strtotime($value));
+        $timestamp = strtotime((string) $value);
+        if ($timestamp === false) {
+          throw new \InvalidArgumentException("Ungültiges Datum: " . $value);
+        }
+        return date("Y-m-d", $timestamp);
+
+      case "datetime":
+        if ($value == "") {
+          return null;
+        }
+        $timestamp = strtotime((string) $value);
+        if ($timestamp === false) {
+          throw new \InvalidArgumentException("Ungültiges Datum/Zeit: " . $value);
+        }
+        return date("Y-m-d H:i:s", $timestamp);
 
       case "boolean":
         // Boolean-Werte umwandeln
@@ -175,7 +188,7 @@ class ArchivDb {
     $allowedColumns = $info["allowed"];
     $primary = $info["primary"];
     $autoIncrement = $info["auto_increment"];
-    if ($autoIncrement && isset($data[$autoIncrement]) && ($data[$autoIncrement] === "") || $data[$autoIncrement] === null) {
+    if ($autoIncrement && isset($data[$autoIncrement]) && (($data[$autoIncrement] === "") || ($data[$autoIncrement] === null))) {
       unset($data[$autoIncrement]);
     }
     // 2. Daten filtern + transformieren

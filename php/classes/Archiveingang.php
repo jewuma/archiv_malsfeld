@@ -8,6 +8,7 @@ use own\Validator;
 use own\Archivobjekte;
 use own\Analogobjekte;
 use own\Dateien;
+use own\AppContext;
 
 class Archiveingang {
   private \PDO $db;
@@ -19,37 +20,49 @@ class Archiveingang {
       "archivobjekt" => "object",
       "archivobjekt.id" => "integer,optional",
       "archivobjekt.ort_id" => "integer",
-      "archivobjekt.zeitraum_start" => "string",
-      "archivobjekt.zeitraum_ende" => "string",
-      "archivobjekt.start_ergaenzung" => "string,optional",
-      "archivobjekt.ende_ergaenzung" => "string,optional",
+      "archivobjekt.zeitraum_start" => "string,emptyOK",
+      "archivobjekt.zeitraum_ende" => "string,emptyOK",
+      "archivobjekt.start_ergaenzung" => "string,emptyOK",
+      "archivobjekt.ende_ergaenzung" => "string,emptyOK",
       "archivobjekt.themen_id" => "integer",
       "archivobjekt.titel" => "string",
       "archivobjekt.beschreibung" => "string,emptyOK",
       "archivobjekt.status" => "integer",
       "archivobjekt.archivdatum" => "date,optional",
       "analogobjekte" => "object,optional",
-      "analogobjekte.*.id" => "integer,optional",
+      "analogobjekte.*.id" => "integer,optional,nullOK",
       "analogobjekte.*.archiv_id" => "string",
-      "analogobjekte.*.seiten" => "integer",
+      "analogobjekte.*.seiten" => "integer,nullOK",
       "analogobjekte.*.objekttyp_id" => "integer",
+      "analogobjekte.*.gesperrt" => "boolean",
+      "analogobjekte.*.gesperrt_bis" => "string,optional,nullOK",
       "analogobjekte.*.lagerort_id" => "integer",
-      "analogobjekte.*.regal_id" => "integer",
-      "analogobjekte.*.fach_id" => "integer",
-      "analogobjekte.*.platz_id" => "integer",
+      "analogobjekte.*.regal_id" => "integer,nullOK",
+      "analogobjekte.*.fach_id" => "integer,nullOK",
+      "analogobjekte.*.platz_id" => "integer,nullOK",
       "analogobjekte.*.digitalisiert" => "integer",
-      "analogobjekte.*.dokumentendatum" => "string,emptyOK",
+      "analogobjekte.*.dokumentendatum" => "string,optional,emptyOK",
       "dateien" => "object,optional",
       "dateien.*.id" => "integer,optional",
       "dateien.*.pfad" => "string",
       "dateien.*.dateiname" => "filename",
       "dateien.*.objekttyp_id" => "integer",
       "dateien.*.gesperrt" => "boolean",
-      "dateien.*.gesperrt_bis" => "string,optional",
+      "dateien.*.gesperrt_bis" => "string,optional,nullOK",
       "dateien.*.dateidatum" => "string,emptyOK",
       "dateien.*.archivdatum" => "date,optional"
     ];
+
     $p = Validator::validateJsonAgainstSchema($parameter, $schema);
+    $username = AppContext::getUsername();
+    $isArchivobjektUpdate = isset($p["archivobjekt"]["id"]) && $p["archivobjekt"]["id"] > 0;
+    if ($isArchivobjektUpdate) {
+      $p["archivobjekt"]["aenderungsdatum"] = date("Y-m-d H:i:s");
+      $p["archivobjekt"]["geaendert_durch"] = $username;
+    } else {
+      $p["archivobjekt"]["archivdatum"] = date("Y-m-d H:i:s");
+      $p["archivobjekt"]["archiviert_durch"] = $username;
+    }
     $this->db->beginTransaction();
     try {
       $archivObjektId = null;
@@ -65,6 +78,15 @@ class Archiveingang {
       }
       if (isset($p["analogobjekte"])) {
         foreach ($p["analogobjekte"] as &$analogobjekt) {
+          $isAnalogobjektUpdate = isset($analogobjekt["id"]) && $analogobjekt["id"] > 0;
+          if ($isAnalogobjektUpdate) {
+            $analogobjekt["aenderungsdatum"] = date("Y-m-d H:i:s");
+            $analogobjekt["geaendert_durch"] = $username;
+          } else {
+            unset($analogobjekt["id"]);
+            $analogobjekt["archivdatum"] = date("Y-m-d H:i:s");
+            $analogobjekt["archiviert_durch"] = $username;
+          }
           $analogobjekt["archivobjekt_id"] = $archivObjektId;
           if (isset($analogobjekt["id"]) && $analogobjekt["id"] > 0) {
             // Update existing analogobjekt
@@ -77,6 +99,15 @@ class Archiveingang {
       }
       if (isset($p["dateien"])) {
         foreach ($p["dateien"] as &$datei) {
+          $isDateiUpdate = isset($datei["id"]) && $datei["id"] > 0;
+          if ($isDateiUpdate) {
+            $datei["aenderungsdatum"] = date("Y-m-d H:i:s");
+            $datei["geaendert_durch"] = $username;
+          } else {
+            unset($datei["id"]);
+            $datei["archivdatum"] = date("Y-m-d H:i:s");
+            $datei["archiviert_durch"] = $username;
+          }
           $datei["archivobjekt_id"] = $archivObjektId;
           if (isset($datei["id"]) && $datei["id"] > 0) {
             // Update existing datei

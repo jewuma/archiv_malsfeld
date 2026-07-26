@@ -128,6 +128,9 @@ export default {
         this.$emit("folder-selected", this.node, isSelected);
       }
     },
+    fileSelected(path, value) {
+      this.$emit("file-selected", path, value);
+    },
     forwardFolderSelected(node, value) {
       this.$emit("folder-selected", node, value);
     },

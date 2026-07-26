@@ -38,6 +38,7 @@ class Validator {
       }
       $isOptional = false;
       $isEmptyOK = false;
+      $isNullOK = false;
       // Support für den Select-Typ
       $allowedValues = [];
       if (is_array($definition) && $definition[0] === "select") {
@@ -50,6 +51,7 @@ class Validator {
 
         $isOptional = in_array('optional', $parts, true);
         $isEmptyOK  = in_array('emptyOK', $parts, true);
+        $isNullOK  = in_array('nullOK', $parts, true);
       }
       $keysToValidate = [];
       if (self::hasWildcard($key)) {
@@ -82,6 +84,9 @@ class Validator {
         $exists = false;
         $value = self::getValue($data, $resolvedKey, $exists);
         if ($isEmptyOK && $value === "") {
+          continue;
+        }
+        if ($isNullOK && $value === null) {
           continue;
         }
 

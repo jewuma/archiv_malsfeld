@@ -145,10 +145,12 @@ class ArchivFiles {
         $param = Validator::validateJsonAgainstSchema($parameters, [
             "files" => "array",
             "targetPath" => "string",
-            "targetFilename" => "string"
+            "targetFilename" => "string",
+            "keepSource" => "boolean,optional"
         ]);
 
         $files = $param["files"];
+        $keepSource = $param["keepSource"] ?? false;
 
         if (count($files) === 0) {
             return new JsonResponse(400, [
@@ -187,8 +189,13 @@ class ArchivFiles {
          * qpdf --empty --pages file1.pdf file2.pdf -- output.pdf
          */
         if (count($inputFiles) === 1) {
-            if (!rename($inputFiles[0], $targetFile))
+            if ($keepSource) {
+                if (!copy($inputFiles[0], $targetFile)) {
+                    throw new \Exception("Speichern fehlgeschlagen");
+                }
+            } elseif (!rename($inputFiles[0], $targetFile)) {
                 throw new \Exception("Speichern fehlgeschlagen");
+            }
         } else {
             $command = sprintf(
                 "qpdf --warning-exit-0 --empty --pages %s -- %s 2>&1",
@@ -202,10 +209,57 @@ class ArchivFiles {
                     "details" => $output
                 ]);
             }
-            foreach ($inputFiles as $file) {
-                unlink($file);
+            if (!$keepSource) {
+                foreach ($inputFiles as $file) {
+                    unlink($file);
+                }
             }
         }
         return new JsonResponse(200, ["file" => $targetFile]);
+    }
+
+    public function finalizeSavedFiles(string $parameters): JsonResponse {
+        $param = Validator::validateJsonAgainstSchema($parameters, [
+            "files" => "array"
+        ]);
+
+        foreach ($param["files"] as $file) {
+            $path = realpath($this->inboxDir . $file);
+            if (!$path) {
+                continue;
+            }
+            if (!unlink($path)) {
+                throw new \Exception("Datei " . basename($path) . " konnte nicht gelöscht werden", 500);
+            }
+        }
+        return new JsonResponse(200, [], "OK");
+    }
+
+    public function cleanupSavedFile(string $parameters): JsonResponse {
+        $param = Validator::validateJsonAgainstSchema($parameters, [
+            "targetPath" => "string",
+            "targetFilename" => "string"
+        ]);
+
+        $targetPath = realpath($this->baseDir . $param["targetPath"]);
+        if (!$targetPath || !is_dir($targetPath)) {
+            return new JsonResponse(200, [], "OK");
+        }
+        if (substr($targetPath, -1) !== DIRECTORY_SEPARATOR) {
+            $targetPath .= DIRECTORY_SEPARATOR;
+        }
+
+        $testName = basename($targetPath . $param["targetFilename"]);
+        if ($testName !== $param["targetFilename"]) {
+            throw new \Exception("Ungültiger Dateiname", 400);
+        }
+
+        $targetFile = $targetPath . $param["targetFilename"];
+        if (file_exists($targetFile)) {
+            if (!unlink($targetFile)) {
+                throw new \Exception("Gespeicherte Datei konnte nicht entfernt werden", 500);
+            }
+        }
+        return new JsonResponse(200, [], "OK");
     }
 }

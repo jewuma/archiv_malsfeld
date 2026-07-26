@@ -35,15 +35,26 @@
             </div>
 
             <!-- Ort -->
-            <div class="mb-3">
-              <label class="form-label">Ort</label>
-              <select class="form-select" v-model="archivObjekt.ort_id" ref="ortInput"
-                @change="selectedSpeicherpfad = ''; storeBasePath = ''">
-                <option value="">Bitte wählen...</option>
-                <option v-for="o in orte" :key="o.id" :value="Number(o.id)">
-                  {{ o.name }}
-                </option>
-              </select>
+            <div class="row mb-3">
+              <div class="col-3">
+                <label class="form-label">Ort</label>
+                <select class="form-select" v-model="archivObjekt.ort_id" ref="ortInput"
+                  @change="selectedSpeicherpfad = ''; storeBasePath = ''">
+                  <option value="">Bitte wählen...</option>
+                  <option v-for="o in orte" :key="o.id" :value="Number(o.id)">
+                    {{ o.name }}
+                  </option>
+                </select>
+              </div>
+              <div class="col-9">
+                <label class="form-label">Thema</label>
+                <select class="form-select" v-model="archivObjekt.themen_id">
+                  <option value="">Bitte wählen...</option>
+                  <option v-for="t in themen" :key="t.id" :value="Number(t.id)">
+                    {{ t.name }}
+                  </option>
+                </select>
+              </div>
             </div>
 
             <!-- Zeitraum -->
@@ -93,7 +104,7 @@
               <div class="col-1">
                 <label class="form-label">Sperre</label>
                 <div class="form-check form-switch m-0">
-                  <input class="form-check-input large-switch pt-2" type="checkbox" id="geschuetzt"
+                  <input class="form-check-input large-switch mt-2" type="checkbox" id="geschuetzt"
                     v-model="datei.gesperrt">
                 </div>
               </div>
@@ -102,15 +113,26 @@
                 <input class="form-control" type="text" v-model="datei.gesperrt_bis">
               </div>
             </div>
-            <div class="mb-3">
-              <button class="btn btn-outline-secondary" @click="chooseStoragePath">
-                Speicherpfad wählen...
-              </button>
+            <div class="row mb-3">
+              <label class="col-3 col-form-label">Quelle</label>
+              <div class="col-6">
+                <select class="form-select" v-model="datei.quellen_id">
+                  <option value="">Bitte wählen...</option>
+                  <option v-for="quelle in quellen" :key="quelle.id" :value="Number(quelle.id)">
+                    {{ quelle.name + ", " + quelle.vorname }}
+                  </option>
+                </select>
+              </div>
+              <div class="col-3">
+                <button class="btn btn-outline-secondary text-nowrap" @click="chooseStoragePath">
+                  Speicherpfad wählen...
+                </button>
+              </div>
             </div>
             <div class="mb-3">
               <label class="form-label">Speicherpfad</label>
               <div class="row">
-                <span class="badge bg-secondary">{{ speicherpfad }}</span>
+                <span class="badge bg-secondary">{{ displaypfad }}</span>
               </div>
             </div>
             <hr>
@@ -159,11 +181,12 @@ export default {
   data() {
     return {
       archivObjekt: {
-        id: null,
-        zeitraum_start: null,
-        start_ergaenzung: null,
-        zeitraum_ende: null,
-        ende_ergaenzung: null,
+        zeitraum_start: "",
+        start_ergaenzung: "",
+        zeitraum_ende: "",
+        ende_ergaenzung: "",
+        themen_id: 0,
+        status: 1,
         titel: "",
         beschreibung: "",
         ort_id: 4,
@@ -172,7 +195,6 @@ export default {
         dateien: [],
       },
       analogObjekt: {
-        id: null,
         archiv_id: "",
         objekttyp_id: 1,
         seiten: null,
@@ -192,12 +214,11 @@ export default {
         quellen_id: 0,
         gesperrt: false,
         gesperrt_bis: (parseInt(new Date().toISOString().substring(0, 4)) + 25).toString(),
-        dateidatum: null,
+        dateidatum: "",
       },
-      analogTitel: "",
+      analogObjektAngelegt: false,
       eingang: [],
       kurztitel: "",
-      orte: [],
       saveMode: 0,
       selectedFiles: {},
       selectedSpeicherpfad: "",
@@ -205,16 +226,24 @@ export default {
       showDeleteDialog: false,
       showStorageDialog: false,
       storeBasePath: "",
+      orte: [],
+      quellen: [],
+      themen: [],
     };
   },
   computed: {
-
+    displaypfad() {
+      if (this.speicherpfad.length > 60) {
+        return "..." + this.speicherpfad.substring(this.speicherpfad.length - 60);
+      }
+      return this.speicherpfad;
+    },
     speicherpfad() {
       let parts = [];
       if (this.datei.gesperrt)
         parts.push("ZYX");
-      if (this.archivObjekt.dokumentDatum) {
-        parts.push(this.formatDokumentDatum(this.archivObjekt.dokumentDatum));
+      if (this.datei.dateidatum) {
+        parts.push(this.formatDokumentDatum(this.datei.dateidatum));
       } else if (this.archivObjekt.zeitraum_start || this.archivObjekt.zeitraum_ende) {
         let von = this.archivObjekt.zeitraum_start || "0000";
         let bis = this.archivObjekt.zeitraum_ende || von;
@@ -228,12 +257,14 @@ export default {
       }
       if (this.archivObjekt.ort_id !== 0 && this.orte.length > 0) {
         const ortsname = this.orte.find(ort => { return ort.id === this.archivObjekt.ort_id })?.name
-        parts.push(ortsname.substr(0, 2))
+        if (ortsname) {
+          parts.push(ortsname.substr(0, 2))
+        }
       }
       return this.storeBasePath + this.selectedSpeicherpfad + "/" + parts.join("_") + ".pdf";
     },
     isPfadSelected() {
-      return (this.storeBasePath + this.selectedSpeicherpfad).split("/").length > 1 && this.archivObjekt.kurztitel.length > 3
+      return (this.storeBasePath + this.selectedSpeicherpfad).split("/").length > 1 && this.kurztitel.length > 3
     }
   },
   watch: {
@@ -244,8 +275,13 @@ export default {
     }
   },
   async created() {
+    const themenResponse = await this.$axios.get("/Themen/getAll");
+    this.themen = themenResponse.data.data
     const orte = await this.$axios.get("/Orte/getAll");
     this.orte = orte.data.data
+    const quellenResponse = await this.$axios.get("/Quellen/getAll");
+    this.quellen = quellenResponse.data.data;
+
   },
   async mounted() {
     this.refreshTree()
@@ -274,21 +310,45 @@ export default {
             platz_id: an.platz_id,
             digitalisiert: an.digitalisiert
           };
-          this.archivObjekt.id = an.ao_id
+          this.archivObjekt.id = an.id
           this.archivObjekt.ort_id = an.ort_id
           this.archivObjekt.titel = an.titel
+          this.archivObjekt.themen_id = an.themen_id
           this.archivObjekt.beschreibung = an.beschreibung
           this.archivObjekt.zeitraum_start = an.zeitraum_start
           this.archivObjekt.start_ergaenzung = an.start_ergaenzung
           this.archivObjekt.zeitraum_ende = an.zeitraum_ende
           this.archivObjekt.ende_ergaenzung = an.ende_ergaenzung
+          this.datei.quellen_id = an.quellen_id
+          this.analogObjektAngelegt = true
+        } else {
+          this.analogObjekt.id = null
+          this.analogObjektAngelegt = false
+          this.analogObjekt.objekttyp_id = 1
+          this.analogObjekt.seiten = null
+          this.analogObjekt.quellen_id = 0
+          this.analogObjekt.gesperrt = false
+          this.analogObjekt.gesperrt_bis = (parseInt(new Date().toISOString().substring(0, 4)) + 25).toString(),
+            this.analogObjekt.lagerort_id = 1
+          this.analogObjekt.regal_id = null
+          this.analogObjekt.fach_id = null
+          this.analogObjekt.platz_id = null
+          this.analogObjekt.digitalisiert = 2
+
         }
       }
     },
     chooseStoragePath() {
       const selectedOrt = this.orte.find(ort => { return ort.id === this.archivObjekt.ort_id })
       if (selectedOrt === undefined) this.storeBasePath = ""
-      else this.storeBasePath = selectedOrt.name + "/"
+      else {
+        this.storeBasePath = selectedOrt.name + "/"
+        const selectedThema = this.themen.find(thema => { return thema.id === this.archivObjekt.themen_id });
+        if (selectedThema && selectedThema.pfadteil) {
+          const prefix = selectedOrt.name.substr(0, 2) + "_"
+          this.storeBasePath += prefix + "Dokumente/" + prefix + selectedThema.pfadteil + "/";
+        }
+      }
       this.showStorageDialog = true
     },
     collectSelected(nodes, result = []) {
@@ -309,7 +369,9 @@ export default {
     },
     createAnalogObjekt(objekt) {
       this.analogObjekt = objekt
-      this.showAnalogObjektAnlegen = false;
+      this.archivObjekt.quellen_id = objekt.quellen_id
+      this.analogObjektAngelegt = true
+      this.showAnalogObjektAnlegen = false
     },
     async deleteConfirmed() {
       this.showDeleteDialog = false
@@ -329,6 +391,10 @@ export default {
       this.setSaveMode()
     },
     formatDokumentDatum(value) {
+      if (value === null || value === undefined || value === "") {
+        return "";
+      }
+      value = String(value);
       let m;
       if ((m = value.match(/^(\d{2})\.(\d{2})\.(\d{4})$/))) {
         return `${m[3]}_${m[2]}${m[1]}`;
@@ -342,21 +408,25 @@ export default {
       return "";
     },
     normalizeDokumentDatum() {
-      let value = this.archivObjekt.dokumentDatum.replace(/\D/g, "");
+      if (!this.datei.dateidatum) {
+        this.datei.dateidatum = "";
+        return;
+      }
+      let value = String(this.datei.dateidatum).replace(/\D/g, "");
 
       if (value.length === 8) {
         // DDMMYYYY -> DD.MM.YYYY
-        this.archivObjekt.dokumentDatum =
+        this.datei.dateidatum =
           `${value.slice(0, 2)}.${value.slice(2, 4)}.${value.slice(4)}`;
       }
       else if (value.length === 6) {
         // MMYYYY -> MM.YYYY
-        this.archivObjekt.dokumentDatum =
+        this.datei.dateidatum =
           `${value.slice(0, 2)}.${value.slice(2)}`;
       }
       else if (value.length === 4) {
         // YYYY
-        this.archivObjekt.dokumentDatum = value;
+        this.datei.dateidatum = value;
       }
     },
     makeFilename(text) {
@@ -380,26 +450,72 @@ export default {
       this.eingang = eingangResponse.data.data
       this.setSaveMode()
     },
-    saveAnalogObject() {
-
+    resetData() {
+      const themen = this.themen
+      const orte = this.orte
+      const initialState = this.$options.data.call(this);
+      Object.assign(this.$data, initialState);
+      this.themen = themen
+      this.orte = orte
     },
     async save() {
       const selectedFiles = this.collectSelected(this.eingang)
       this.archivObjekt.dateiPfad = this.speicherpfad
+      const targetPath = this.storeBasePath + this.selectedSpeicherpfad
+      const targetFilename = this.speicherpfad.split('/').pop()
       await this.$axios.post("/ArchivFiles/saveFiles", {
         "files": selectedFiles,
-        "targetPath": this.storeBasePath + this.selectedSpeicherpfad,
-        "targetFilename": this.speicherpfad.split('/').pop()
+        "targetPath": targetPath,
+        "targetFilename": targetFilename,
+        "keepSource": true
       })
-      const saveObjekt = JSON.parse(JSON.stringify(this.archivObjekt))
-      saveObjekt.dokumentDatum = this.formatDokumentDatum(saveObjekt.dokumentDatum).replace(/^(\d{4})_(\d{2})(\d{2})$/, "$1-$2-$3");
-      await this.$axios.post("/Archiv/create", saveObjekt)
+      this.datei.pfad = targetPath
+      this.datei.dateiname = targetFilename
+      this.datei.dateidatum = this.formatDokumentDatum(this.datei.dateidatum).replace(/^(\d{4})_(\d{2})(\d{2})$/, "$1-$2-$3");
+      if (!this.datei.gesperrt) {
+        this.datei.gesperrt_bis = null
+      }
+      this.archivObjekt.dateien = [this.datei]
+
+      const payload = {
+        archivobjekt: {
+          ...this.archivObjekt,
+          zeitraum_start: this.archivObjekt.zeitraum_start ?? "",
+          zeitraum_ende: this.archivObjekt.zeitraum_ende ?? "",
+          start_ergaenzung: this.archivObjekt.start_ergaenzung ?? "",
+          ende_ergaenzung: this.archivObjekt.ende_ergaenzung ?? "",
+          themen_id: Number(this.archivObjekt.themen_id ?? 0),
+          status: Number(this.archivObjekt.status ?? 1),
+        },
+        dateien: [this.datei],
+      }
+      if (this.analogObjektAngelegt) {
+        if (!this.analogObjekt.gesperrt) {
+          this.analogObjekt.gesperrt_bis = null
+        }
+        payload.analogobjekte = [this.analogObjekt]
+      }
+      try {
+        await this.$axios.post("/Archiveingang/createOrUpdate", payload)
+      } catch (error) {
+        await this.$axios.post("/ArchivFiles/cleanupSavedFile", {
+          "targetPath": targetPath,
+          "targetFilename": targetFilename
+        })
+        this.$sendMsg(true, "Fehler beim Speichern: " + error.response.data.message)
+        return
+      }
+
+      await this.$axios.post("/ArchivFiles/finalizeSavedFiles", {
+        "files": selectedFiles
+      })
       if (selectedFiles.length === 1) {
         this.$sendMsg(false, "Datei gespeichert")
       } else {
         this.$sendMsg(false, "Dateien gespeichert")
       }
       this.refreshTree()
+      this.resetData()
     },
     setSaveMode() {
       const files = this.collectSelected(this.eingang)
