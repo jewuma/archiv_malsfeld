@@ -11,6 +11,11 @@
       <span v-else-if="node.type === 'directory'" class="toggle-space"></span>
       {{ icon }}
       {{ node.name }}
+      <div v-if="node.type === 'directory'" class="tree-folder-actions">
+        <i v-if="addFolderAllowed" class="bi bi-folder-plus" title="Unterordner anlegen"
+          @click.stop="$emit('add-folder', node)">
+        </i>
+      </div>
       <div v-if="selectable && node.type == 'file'" class="tree-actions">
         <i v-if="node.canMoveUp" class="bi bi-arrow-up-circle me-2" @click.stop="$emit('move-up', node, siblings)"></i>
         <i v-if="node.canMoveDown" class="bi bi-arrow-down-circle me-2"
@@ -20,7 +25,8 @@
     </div>
     <div v-if="open" class="children">
       <TreeNode v-for="child in node.children" :key="child.path" :node="child" :siblings="node.children"
-        :search="search" :selectable="selectable" @select="$emit('select', $event)" @preview="preview" @move-up="moveUp"
+        :search="search" :selectable="selectable" :add-folder-allowed="addFolderAllowed"
+        @add-folder="$emit('add-folder', $event)" @select="$emit('select', $event)" @preview="preview" @move-up="moveUp"
         @move-down="moveDown" @load-children="loadChildren" @file-selected="fileSelected"
         @folder-selected="forwardFolderSelected" />
     </div>
@@ -29,14 +35,14 @@
 <script>
 export default {
   name: "TreeNode",
-  emits: ["move-up", "move-down", "select", "preview", "file-selected", "folder-selected"],
+  emits: ["add-folder", "move-up", "move-down", "select", "preview", "file-selected", "folder-selected"],
   props: {
+    addFolderAllowed: {
+      type: Boolean,
+      default: false
+    },
     node: {
       type: Object,
-      required: true
-    },
-    siblings: {
-      Array,
       required: true
     },
     search: {
@@ -46,7 +52,11 @@ export default {
     selectable: {
       type: Boolean,
       default: false
-    }
+    },
+    siblings: {
+      type: Array,
+      required: true
+    },
   },
   data() {
     return {
@@ -174,5 +184,26 @@ export default {
   display: flex;
   margin-left: auto;
   align-items: center;
+}
+
+.tree-folder-actions {
+  margin-left: auto;
+  margin-right: 20px;
+  display: flex;
+  align-items: center;
+  opacity: 0;
+  transition: opacity .15s;
+}
+
+.tree-node:hover .tree-folder-actions {
+  opacity: 1;
+}
+
+.tree-folder-actions i {
+  cursor: pointer;
+}
+
+.tree-folder-actions i:hover {
+  color: #0d6efd;
 }
 </style>

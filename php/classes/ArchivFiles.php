@@ -6,16 +6,35 @@ use own\FileResponse;
 use own\JsonResponse;
 use own\ArchivDb;
 use own\Validator;
+use Imagick;
 
 require_once __DIR__ . "/../.clientData.inc.php";
 
 class ArchivFiles {
     private string $baseDir = ARCHIV_FILE_PATH;
     private string $inboxDir = ARCHIV_FILE_PATH . "archiveingang/";
+    private string $cacheDir = ARCHIV_FILE_PATH . "cache/";
     private int $modifiedbaseDirLength = 0;
     private \finfo|bool $finfo;
     public function __construct() {
         $this->finfo = finfo_open(FILEINFO_MIME_TYPE);
+    }
+    public function createFolder(string $parameters): JsonResponse {
+        $param = Validator::validateJsonAgainstSchema($parameters, ["directory" => "string", "folderName" => "filename"]);
+        $directory = realpath($this->baseDir . $param["directory"]);
+        if (!$directory || !is_dir($directory)) {
+            throw new \Exception("Verzeichnis existiert nicht", 404);
+        }
+        if (substr($directory, -1) !== DIRECTORY_SEPARATOR)
+            $directory .= DIRECTORY_SEPARATOR;
+        $newFolderPath = $directory . $param["folderName"];
+        if (file_exists($newFolderPath)) {
+            throw new \Exception("Ordner existiert bereits", 400);
+        }
+        if (!mkdir($newFolderPath, 0777, true)) {
+            throw new \Exception("Ordner konnte nicht erstellt werden", 500);
+        }
+        return new JsonResponse(200, [], "OK");
     }
     public function deleteMulti(string $parameters): JsonResponse {
         $param = Validator::validateJsonAgainstSchema($parameters, ["files" => "array"]);
@@ -67,6 +86,55 @@ class ArchivFiles {
             $mimeType,
             null,
             $path
+        );
+    }
+    public function getPreviewByPath(string $parameters): FileResponse {
+        $file = $this->getByPath($parameters);
+        $path = $file->filePathForStreaming;
+
+        $tmpFile = tempnam(sys_get_temp_dir(), 'preview_') . '.jpg';
+        $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+        switch ($extension) {
+
+            case 'jpg':
+            case 'jpeg':
+            case 'png':
+            case 'gif':
+                $image = new Imagick($path);
+                $image->setImageFormat('webp');
+                $image->thumbnailImage(1200, 1200, true);
+                $image->setImageFormat('webp');
+                $image->writeImage($tmpFile);
+                break;
+            case 'tif':
+            case 'tiff':
+                $image = new Imagick($path . '[0]');      // erste Seite
+                $image->thumbnailImage(1200, 1200, true);
+                $image->setImageFormat('webp');
+                $image->writeImage($tmpFile);
+                break;
+
+            case 'pdf':
+                $image = new Imagick();
+                $image->setResolution(150, 150);
+                $image->readImage($path . '[0]');          // erste Seite
+                $image->thumbnailImage(1200, 1200, true);
+                $image->setImageFormat('webp');
+                $image->writeImage($tmpFile);
+                break;
+
+            default:
+                throw new \Exception(
+                    "Für diesen Dateityp ist keine Vorschau verfügbar.",
+                    400
+                );
+        }
+
+        return new FileResponse(
+            basename($tmpFile),
+            'image/webp',
+            null,
+            $tmpFile
         );
     }
     public function getTree(string $parameters): JsonResponse {

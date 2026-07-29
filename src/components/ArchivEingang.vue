@@ -136,16 +136,24 @@
               </div>
             </div>
             <hr>
-            <div class="d-grid gap-2">
-              <button v-if="saveMode === 2" class="btn btn-primary" :disabled="!isPfadSelected"
-                @click="save">Zusammenfassen
-                und speichern</button>
-              <button v-else class="btn btn-primary" :disabled="saveMode === 0 || !isPfadSelected"
-                @click="save">Speichern</button>
-              <button class="btn btn-outline-danger" :disabled="Object.keys(selectedFiles).length === 0"
-                @click="deleteSelected">
-                Ausgewählte löschen
-              </button>
+            <div class="row">
+              <span :title="saveDisabledReason">
+                <button class="btn btn-outline-danger pe-2" :disabled="Object.keys(selectedFiles).length === 0"
+                  @click="deleteSelected">
+                  Ausgewählte löschen
+                </button>
+                <span v-if="saveMode === 2">
+                  <button class="btn btn-secondary" :disabled="!isPfadSelected || nonPdfSelected"
+                    @click="showOptions">Andere
+                    Speicheroptionen</button>
+
+                  <button class="btn btn-primary" :disabled="!isPfadSelected || nonPdfSelected"
+                    @click="save">Zusammenfassen
+                    und speichern</button>
+                </span>
+                <button v-else class="btn btn-primary" :disabled="saveMode === 0 || !isPfadSelected"
+                  @click="save">Speichern</button>
+              </span>
             </div>
           </div>
         </div>
@@ -160,6 +168,8 @@
     <MessageDialog v-if="showDeleteDialog" title="Ausgewählte Dateien wirklich löschen?"
       message="Sollen die gewählten Dateien wirklich gelöscht werden?" @confirm="deleteConfirmed"
       @cancel="showDeleteDialog = false" confirm-text="Löschen" />
+    <ArchivSaveOptionen v-if="showOptionDialog" :files="filesToSave" @cancel="showOptionDialog = false"
+      @apply="saveOptionsApplied" />
   </CardComponent>
 </template>
 
@@ -169,6 +179,7 @@ import TreeView from "./TreeView.vue";
 import StoragePathDialog from "@/components/StoragePathDialog.vue";
 import AnalogObjektAnlegen from "./AnalogObjektAnlegen.vue";
 import MessageDialog from "./MessageDialog.vue";
+import ArchivSaveOptionen from "./ArchivSaveOptionen.vue";
 export default {
   components: {
     AnalogObjektAnlegen,
@@ -176,6 +187,7 @@ export default {
     MessageDialog,
     StoragePathDialog,
     TreeView,
+    ArchivSaveOptionen,
   },
 
   data() {
@@ -218,13 +230,16 @@ export default {
       },
       analogObjektAngelegt: false,
       eingang: [],
+      filesToSave: [],
       kurztitel: "",
+      nonPdfSelected: false,
       saveMode: 0,
       selectedFiles: {},
       selectedSpeicherpfad: "",
       showAnalogObjektAnlegen: false,
       showDeleteDialog: false,
       showStorageDialog: false,
+      showOptionDialog: false,
       storeBasePath: "",
       orte: [],
       quellen: [],
@@ -233,8 +248,8 @@ export default {
   },
   computed: {
     displaypfad() {
-      if (this.speicherpfad.length > 60) {
-        return "..." + this.speicherpfad.substring(this.speicherpfad.length - 60);
+      if (this.speicherpfad.length > 120) {
+        return "..." + this.speicherpfad.substring(this.speicherpfad.length - 120);
       }
       return this.speicherpfad;
     },
@@ -265,7 +280,22 @@ export default {
     },
     isPfadSelected() {
       return (this.storeBasePath + this.selectedSpeicherpfad).split("/").length > 1 && this.kurztitel.length > 3
-    }
+    },
+    saveDisabledReason() {
+      if (this.isPfadSelected && !this.nonPdfSelected)
+        return "";
+
+      if (!this.isPfadSelected)
+        if (this.kurztitel.length < 4)
+          return "Kurztitel muss mindestens 4 Zeichen lang sein.";
+        else
+          return "Bitte zuerst ein Zielverzeichnis auswählen.";
+
+      if (this.nonPdfSelected)
+        return "Es können nur PDF-Dateien zusammengefasst werden.";
+
+      return "";
+    },
   },
   watch: {
     "archivObjekt.titel"(neu, alt) {
@@ -357,6 +387,9 @@ export default {
           node.type === "file" &&
           Object.prototype.hasOwnProperty.call(this.selectedFiles, node.path)
         ) {
+          if (node.mimeType !== "application/pdf") {
+            this.nonPdfSelected = true
+          }
           result.push(node.path);
         }
 
@@ -375,6 +408,7 @@ export default {
     },
     async deleteConfirmed() {
       this.showDeleteDialog = false
+      this.nonPdfSelected = false
       const filesToDelete = this.collectSelected(this.eingang)
       await this.$axios.post("/ArchivFiles/deleteMulti", { "files": filesToDelete })
       this.refreshTree()
@@ -459,6 +493,7 @@ export default {
       this.orte = orte
     },
     async save() {
+      this.nonPdfSelected = false
       const selectedFiles = this.collectSelected(this.eingang)
       this.archivObjekt.dateiPfad = this.speicherpfad
       const targetPath = this.storeBasePath + this.selectedSpeicherpfad
@@ -517,11 +552,69 @@ export default {
       this.refreshTree()
       this.resetData()
     },
+    async saveOptionsApplied(options) {
+      this.showOptionDialog = false
+      console.log("saveOptionsApplied", options)
+      return
+      this.nonPdfSelected = false
+      const selectedFiles = this.collectSelected(this.eingang)
+      this.archivObjekt.dateiPfad = this.speicherpfad
+      const targetPath = this.storeBasePath + this.selectedSpeicherpfad
+      const targetFilename = this.speicherpfad.split('/').pop()
+      await this.$axios.post("/ArchivFiles/saveFiles", {
+        "files": selectedFiles,
+        "targetPath": targetPath,
+        "targetFilename": targetFilename,
+        "keepSource": true
+      })
+      this.datei.pfad = targetPath
+      this.datei.dateiname = targetFilename
+      this.datei.dateidatum = this.formatDokumentDatum(this.datei.dateidatum).replace(/^(\d{4})_(\d{2})(\d{2})$/, "$1-$2-$3");
+      if (!this.datei.gesperrt) {
+        this.datei.gesperrt_bis = null
+      }
+      this.archivObjekt.dateien = [this.datei]
+
+      const payload = {
+        archivobjekt: {
+          ...this.archivObjekt,
+          zeitraum_start: this.archivObjekt.zeitraum_start ?? "",
+          zeitraum_ende: this.archivObjekt.zeitraum_ende ?? "",
+          start_ergaenzung: this.archivObjekt.start_ergaenzung ?? "",
+          ende_ergaenzung: this.archivObjekt.ende_ergaenzung ?? "",
+          themen_id: Number(this.archivObjekt.themen_id ?? 0),
+          status: Number(this.archivObjekt.status ?? 1),
+        },
+        dateien: [this.datei],
+      }
+      if (this.analogObjektAngelegt) {
+        if (!this.analogObjekt.gesperrt) {
+          this.analogObjekt.gesperrt_bis = null
+        }
+        payload.analogobjekte = [this.analogObjekt]
+      }
+      try {
+        await this.$axios.post("/Archiveingang/createOrUpdate", payload)
+      } catch (error) {
+        await this.$axios.post("/ArchivFiles/cleanupSavedFile", {
+          "targetPath": targetPath,
+          "targetFilename": targetFilename
+        })
+        this.$sendMsg(true, "Fehler beim Speichern: " + error.response.data.message)
+        return
+      }
+    },
     setSaveMode() {
+      this.nonPdfSelected = false
       const files = this.collectSelected(this.eingang)
       if (files.length === 0) this.saveMode = 0
       else if (files.length === 1) this.saveMode = 1
       else this.saveMode = 2
+    },
+    showOptions() {
+      this.nonPdfSelected = false
+      this.filesToSave = this.collectSelected(this.eingang)
+      this.showOptionDialog = true
     },
     storagePathSelected(path) {
       this.selectedSpeicherpfad = path

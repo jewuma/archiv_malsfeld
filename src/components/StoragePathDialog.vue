@@ -11,10 +11,13 @@
       </div>
 
       <div class="tree-container">
-        <TreeView :tree="tree" @select="selectNode" />
+        <TreeView :tree="tree" @select="selectNode" add-folder-allowed @add-folder="askForFoldername" />
       </div>
-
     </div>
+    <MessageDialog v-if="showAddFolderDialog" title="Unterordner anlegen" message="Neuen Unterordner anlegen?"
+      confirm-text="Anlegen" cancel-text="Abbruch" @confirm="addFolder" @cancel="showAddFolderDialog = false">
+      <input v-model="newFolderName" type="text" class="form-control" placeholder="Name des Unterordners">
+    </MessageDialog>
   </MessageDialog>
 </template>
 <script>
@@ -35,12 +38,37 @@ export default {
     return {
       tree: [],
       selectedPath: "",
+      showAddFolderDialog: false,
+      newFolderName: "",
+      currentNode: null
     }
   },
   async created() {
     this.refreshTree()
   },
   methods: {
+    askForFoldername(node) {
+      this.showAddFolderDialog = true
+      this.newFolderName = ""
+      this.currentNode = node
+    },
+    async addFolder() {
+      const folderName = this.newFolderName
+      const path = this.basePath + this.currentNode.path
+      if (folderName) {
+        try {
+          await this.$axios.post("/ArchivFiles/createFolder", { "directory": path, "folderName": folderName })
+          this.refreshTree()
+          this.selectedPath = path + "/" + folderName
+          this.$sendMsg(false, "Unterordner erfolgreich angelegt")
+        } catch (error) {
+          this.$sendMsg(true, "Fehler beim Anlegen des Unterordners: " + error.response.data.message)
+        }
+        //await this.$axios.post("/ArchivFiles/createFolder", { "directory": path, "folderName": folderName })
+        //this.refreshTree()
+      }
+      this.showAddFolderDialog = false
+    },
     async refreshTree() {
       const treeResponse = await this.$axios.post("/ArchivFiles/getTree", { "directory": this.basePath })
       this.tree = treeResponse.data.data

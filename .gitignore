@@ -25,6 +25,7 @@ coverage
 *.sln
 *.sw?
 
+vendor/*
 test/
 *.tsbuildinfo
 

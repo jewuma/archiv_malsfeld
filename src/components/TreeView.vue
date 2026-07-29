@@ -10,9 +10,9 @@
       </button>
     </div>
     <TreeNode v-for="node in filteredTree" :key="node.path" :node="node" :siblings="filteredTree" :search="search"
-      :selectable="selectable" @select="selectNode" @file-selected="fileSelected"
-      @load-children="$emit('load-children', $event)" @preview="showPreview($event)" @move-up="moveUp"
-      @move-down="moveDown" @folder-selected="folderSelected" />
+      :selectable="selectable" :add-folder-allowed="addFolderAllowed" @add-folder="$emit('add-folder', $event)"
+      @select="selectNode" @file-selected="fileSelected" @load-children="$emit('load-children', $event)"
+      @preview="showPreview($event)" @move-up="moveUp" @move-down="moveDown" @folder-selected="folderSelected" />
   </div>
 </template>
 
@@ -25,43 +25,45 @@ export default {
 
   name: "TreeView",
   emits: [
+    "add-folder",
     "file-selected",
     "folder-selected",
-    "select",
     "load-children",
-    "preview",
-    "move-up",
     "move-down",
-    "refresh-tree"
+    "move-up",
+    "preview",
+    "refresh-tree",
+    "select",
   ],
   components: {
     TreeNode
   },
   props: {
-
+    addFolderAllowed: {
+      type: Boolean,
+      default: false
+    },
+    selectable: {
+      type: Boolean,
+      default: false
+    },
+    showSearch: {
+      type: Boolean,
+      default: true
+    },
+    title: {
+      type: String,
+      default: ""
+    },
     tree: {
       type: Array,
       required: true
     },
 
-    title: {
-      type: String,
-      default: ""
-    },
-
-    selectable: {
-      type: Boolean,
-      default: false
-    },
-
-    showSearch: {
-      type: Boolean,
-      default: true
-    }
-
   },
   data() {
     return {
+      newFolderName: "",
       search: "",
     }
   },

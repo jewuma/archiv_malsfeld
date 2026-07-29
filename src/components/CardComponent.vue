@@ -43,9 +43,9 @@
 
             <!-- Tabelle -->
             <div class="col-12">
-              <TableComponent ref="childTable" :fields="fields" :filterOptions="filterOptions" :table-data="tableData"
-                :highlight="highlight" @row-selected="rowSelected" @edit="rowEdited" @action="onAction"
-                @toggle-expand="toggleExpand">
+              <TableComponent v-if="tableData.length > 0" ref="childTable" :fields="fields"
+                :filterOptions="filterOptions" :table-data="tableData" :highlight="highlight"
+                @row-selected="rowSelected" @edit="rowEdited" @action="onAction" @toggle-expand="toggleExpand">
                 <template #expanded="slotProps">
                   <slot name="expanded" v-bind="slotProps" />
                 </template>
@@ -77,11 +77,13 @@ export default {
     },
     fields: {
       type: Array,
-      required: true,
+      required: false,
+      default: () => [],
     },
     filterOptions: {
       type: Array,
       required: false,
+      default: () => [],
     },
     highlight: {
       type: Number,
@@ -106,7 +108,8 @@ export default {
     },
     tableData: {
       type: Array,
-      required: true,
+      required: false,
+      default: () => []
     },
     title: {
       type: String,
