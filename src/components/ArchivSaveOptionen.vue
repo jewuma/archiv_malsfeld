@@ -37,9 +37,9 @@
                 </div>
 
                 <div class="form-check mb-2">
-                  <input class="form-check-input" type="radio" id="connectAllFilesToOneArchivObject"
-                    value="connectAllFilesToOneArchivObject" v-model="archivOption" name="archivOption">
-                  <label class="form-check-label" for="connectAllFilesToOneArchivObject">
+                  <input class="form-check-input" type="radio" id="saveAllFilesToOneArchivObject"
+                    value="saveAllFilesToOneArchivObject" v-model="archivOption" name="archivOption">
+                  <label class="form-check-label" for="saveAllFilesToOneArchivObject">
                     Alle Dateien unter einem Archivobjekt speichern
                   </label>
                 </div>
@@ -72,7 +72,7 @@
 
           <div class="action-buttons">
             <button class="btn btn-outline-secondary" @click="cancel">Abbrechen</button>
-            <button class="btn btn-primary" @click="apply">Übernehmen</button>
+            <button class="btn btn-primary" @click="apply">Übernehmen und Speichern</button>
           </div>
         </div>
       </div>

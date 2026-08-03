@@ -22,17 +22,25 @@ export default {
         { name: 'objekttyp', label: 'Dateiart', type: 'text', 'width': '150px' },
         { name: 'dateidatum', label: 'Dateidatum', type: 'date', 'width': '100px' },
         { name: 'archivdatum', label: 'Archiviert am', type: 'date', 'width': '100px' },
-        { name: 'filelink', label: 'Anschauen', type: 'pdf', 'width': '80px' },
+        { name: 'fileInfo', label: 'Anschauen', type: 'files', 'width': '80px' },
       ],
       fileInfo: [],
 
     }
   },
   async created() {
-    if (!this.showIcon) {
-      const analogInfo = await this.$axios.get("/Archiv/getFileobjects/" + this.item.id)
-      this.fileInfo = analogInfo.data.data
-    }
+    const dateiInfo = await this.$axios.get("/Archiv/getFileobjects/" + this.item.id)
+    this.fileInfo = dateiInfo.data.data.map(file => {
+      return {
+        ...file,
+        fileInfo: {
+          count: 1,
+          id: file.id,
+          type: file.dateiname.split('.').pop().toLowerCase(),
+          firstId: file.id,
+        }
+      }
+    })
   }
 }
 </script>

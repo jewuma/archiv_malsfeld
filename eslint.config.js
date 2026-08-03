@@ -21,6 +21,16 @@ export default defineConfig([
     },
   },
 
+  {
+    files: ['**/*.{spec,test}.{js,mjs,jsx}'],
+    languageOptions: {
+      globals: {
+        ...globals.node,
+        ...globals.vitest,
+      },
+    },
+  },
+
   js.configs.recommended,
   ...pluginVue.configs['flat/essential'],
 

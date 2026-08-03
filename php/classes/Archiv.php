@@ -6,16 +6,13 @@ use own\JsonResponse;
 use own\Validator;
 use own\ArchivDb;
 
-class Archiv
-{
+class Archiv {
   // Class implementation
   private \PDO $db;
-  public function __construct()
-  {
+  public function __construct() {
     $this->db = ArchivDb::getDbInstance();
   }
-  public function getAnalogobjects(int $id): JsonResponse
-  {
+  public function getAnalogobjects(int $id): JsonResponse {
     $id = (int) $id;
     if (!$id) {
       throw new \Exception("Archivobjekt-Id fehlt");
@@ -43,8 +40,7 @@ class Archiv
       WHERE archivobjekt_id=?";
     return ArchivDb::preparedWebQuery($sql, [$id]);
   }
-  public function getFileobjects(int $id): JsonResponse
-  {
+  public function getFileobjects(int $id): JsonResponse {
     $id = (int) $id;
     if (!$id) {
       throw new \Exception("Archivobjekt-Id fehlt");
@@ -55,16 +51,13 @@ class Archiv
       da.dateiname,
       ob.bezeichnung as objekttyp,
       da.dateidatum,
-      DATE(da.archivdatum) AS archivdatum, 
-      CONCAT('/ArchivFiles/get/',da.id) AS filelink
+      DATE(da.archivdatum) AS archivdatum 
       FROM dateien da 
       LEFT JOIN objekttypen ob ON da.objekttyp_id=ob.id
       WHERE archivobjekt_id=?";
     return ArchivDb::preparedWebQuery($sql, [$id]);
-
   }
-  public function getStats(): JsonResponse
-  {
+  public function getStats(): JsonResponse {
     $sql =
       "SELECT
     (SELECT COUNT(*) 
@@ -93,8 +86,7 @@ class Archiv
     $result = array_merge($res1->fetch(), ["orte" => $res2->fetchAll()]);
     return new JsonResponse(200, $result);
   }
-  public function search(string $parameter): JsonResponse
-  {
+  public function search(string $parameter): JsonResponse {
     $param = Validator::validateJsonAgainstSchema($parameter, [
       "schlagworte_ids" => "array,optional",
       "ort_id" => "integer,optional",
@@ -206,8 +198,7 @@ class Archiv
     ];
     return Archivdb::preparedWebQuery($sql, $paramArray);
   }
-  public function create(string $parameter): JsonResponse
-  {
+  public function create(string $parameter): JsonResponse {
     $param = Validator::validateJsonAgainstSchema(
       $parameter,
       [
@@ -221,7 +212,7 @@ class Archiv
         "dateiPfad" => "string",
       ]
     );
-    $sql="INSERT INTO archivobjekte (ort_id,zeitraum_start, zeitraum_ende, titel, `status`, archivdatum)
+    $sql = "INSERT INTO archivobjekte (ort_id,zeitraum_start, zeitraum_ende, titel, `status`, archivdatum)
       VALUES (:ort_id, :abJahr, :bisJahr, :kurztitel, 1, NOW())";
     $this->db->beginTransaction();
     $this->db->prepare($sql)->execute([

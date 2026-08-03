@@ -27,6 +27,7 @@ class Archiveingang {
       "archivobjekt.themen_id" => "integer",
       "archivobjekt.titel" => "string",
       "archivobjekt.beschreibung" => "string,emptyOK",
+      "archivobjekt.dateiPfad" => "string,optional,emptyOK",
       "archivobjekt.status" => "integer",
       "archivobjekt.archivdatum" => "date,optional",
       "analogobjekte" => "object,optional",
@@ -42,15 +43,15 @@ class Archiveingang {
       "analogobjekte.*.platz_id" => "integer,nullOK",
       "analogobjekte.*.digitalisiert" => "integer",
       "analogobjekte.*.dokumentendatum" => "string,optional,emptyOK",
-      "dateien" => "object,optional",
-      "dateien.*.id" => "integer,optional",
-      "dateien.*.pfad" => "string",
-      "dateien.*.dateiname" => "filename",
-      "dateien.*.objekttyp_id" => "integer",
-      "dateien.*.gesperrt" => "boolean",
-      "dateien.*.gesperrt_bis" => "string,optional,nullOK",
-      "dateien.*.dateidatum" => "string,emptyOK",
-      "dateien.*.archivdatum" => "date,optional"
+      "digitalobjekte" => "object,optional",
+      "digitalobjekte.*.id" => "integer,optional",
+      "digitalobjekte.*.pfad" => "string",
+      "digitalobjekte.*.dateiname" => "filename",
+      "digitalobjekte.*.objekttyp_id" => "integer",
+      "digitalobjekte.*.gesperrt" => "boolean",
+      "digitalobjekte.*.gesperrt_bis" => "string,optional,nullOK",
+      "digitalobjekte.*.dateidatum" => "string,emptyOK",
+      "digitalobjekte.*.archivdatum" => "date,optional"
     ];
 
     $p = Validator::validateJsonAgainstSchema($parameter, $schema);
@@ -97,24 +98,24 @@ class Archiveingang {
           }
         }
       }
-      if (isset($p["dateien"])) {
-        foreach ($p["dateien"] as &$datei) {
-          $isDateiUpdate = isset($datei["id"]) && $datei["id"] > 0;
-          if ($isDateiUpdate) {
-            $datei["aenderungsdatum"] = date("Y-m-d H:i:s");
-            $datei["geaendert_durch"] = $username;
+      if (isset($p["digitalobjekte"])) {
+        foreach ($p["digitalobjekte"] as &$digitalobjekt) {
+          $isDigitalobjektUpdate = isset($digitalobjekt["id"]) && $digitalobjekt["id"] > 0;
+          if ($isDigitalobjektUpdate) {
+            $digitalobjekt["aenderungsdatum"] = date("Y-m-d H:i:s");
+            $digitalobjekt["geaendert_durch"] = $username;
           } else {
-            unset($datei["id"]);
-            $datei["archivdatum"] = date("Y-m-d H:i:s");
-            $datei["archiviert_durch"] = $username;
+            unset($digitalobjekt["id"]);
+            $digitalobjekt["archivdatum"] = date("Y-m-d H:i:s");
+            $digitalobjekt["archiviert_durch"] = $username;
           }
-          $datei["archivobjekt_id"] = $archivObjektId;
-          if (isset($datei["id"]) && $datei["id"] > 0) {
-            // Update existing datei
-            $this->updateDatei($datei["id"], $datei);
+          $digitalobjekt["archivobjekt_id"] = $archivObjektId;
+          if (isset($digitalobjekt["id"]) && $digitalobjekt["id"] > 0) {
+            // Update existing digitalobjekt
+            $this->updateDigitalobjekt($digitalobjekt["id"], $digitalobjekt);
           } else {
-            // Create new datei
-            $this->createDatei($datei);
+            // Create new digitalobjekt
+            $this->createDigitalobjekt($digitalobjekt);
           }
         }
       }
@@ -146,14 +147,14 @@ class Archiveingang {
     $an = new Analogobjekte();
     $an->save($analogobjektData, true);
   }
-  private function createDatei(array $dateiData): int {
+  private function createDigitalobjekt(array $digitalobjektData): int {
     $d = new Dateien();
-    $result = $d->save($dateiData);
+    $result = $d->save($digitalobjektData);
     return $result->data["id"];
   }
-  private function updateDatei(int $dateiId, array $dateiData): void {
-    $dateiData["id"] = $dateiId;
+  private function updateDigitalobjekt(int $digitalobjektId, array $digitalobjektData): void {
+    $digitalobjektData["id"] = $digitalobjektId;
     $d = new Dateien();
-    $d->save($dateiData, true);
+    $d->save($digitalobjektData, true);
   }
 }

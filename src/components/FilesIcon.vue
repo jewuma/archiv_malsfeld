@@ -49,11 +49,6 @@ export default {
       type: Object,
       required: true
     },
-    showIcon: {
-      type: Boolean,
-      required: false,
-      default: false
-    }
   },
 
   emits: [
@@ -106,7 +101,7 @@ export default {
       try {
 
         const response = await this.$axios.get(
-          `/ArchivFiles/get/${fileId}`,
+          `/ArchivFiles/getBrowserCompatible/${fileId}`,
           {
             responseType: "blob"
           }
