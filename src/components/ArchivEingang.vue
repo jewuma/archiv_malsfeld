@@ -504,10 +504,12 @@ export default {
     resetData() {
       const themen = this.themen
       const orte = this.orte
+      const quellen = this.quellen
       const initialState = this.$options.data.call(this);
       Object.assign(this.$data, initialState);
       this.themen = themen
       this.orte = orte
+      this.quellen = quellen
       this.saveOptions = {
         archivOption: "CombineFilesToOneArchivObjekt",
         filePrefix: "",

@@ -1,8 +1,8 @@
 <template>
   <ArchivDashboard />
-  <div class="d-flex justify-content-center align-items-center" style="height: calc(100vh - 156px)">
+  <!-- <div class="d-flex justify-content-center align-items-center" style="height: calc(100vh - 156px)">
     <img src="/logo.png" alt="Logo" class="img-fluid">
-  </div>
+  </div> -->
 </template>
 <script>
 import ArchivDashboard from './ArchivDashboard.vue';

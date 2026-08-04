@@ -152,7 +152,7 @@ export default {
 
     apply() {
       this.$emit("apply", {
-        title: this.titles,
+        titles: this.titles,
         files: this.files,
         archivOption: this.archivOption,
         newFilePrefix: this.newFilePrefix,

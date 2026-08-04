@@ -1,106 +1,114 @@
 <template>
   <CardComponent title="Archivsuche" :table-data="tableData" :fields="fields" :loading="loading"
     @toggle-expand="toggleExpand">
-    <div class="search-tabs-wrap">
-      <ul class="nav nav-tabs search-tabs mb-0">
-        <li class="nav-item">
-          <button class="nav-link" :class="{ active: activeTab === 'basis' }" type="button"
-            @click="activeTab = 'basis'">
-            Hauptsuche
-          </button>
-        </li>
-        <li class="nav-item">
-          <button class="nav-link" :class="{ active: activeTab === 'details' }" type="button"
-            @click="activeTab = 'details'">
-            Weitere Filter
-          </button>
-        </li>
-      </ul>
-    </div>
-
-    <div class="search-panel">
-      <div v-if="activeTab === 'basis'" class="row g-2 align-items-end">
-        <div class="col-md-4">
-          <label class="form-label">Suchbegriff</label>
-          <input class="form-control form-control-sm" v-model="suche.suchbegriff">
-        </div>
-
-        <div class="col-md-4">
-          <label class="form-label">Ort</label>
-          <select class="form-select form-select-sm" v-model="ort">
-            <option :value="null">
-              Alle
-            </option>
-            <option v-for="ort in orte" :key="ort.id" :value="ort.id">
-              {{ ort.name }}
-            </option>
-          </select>
-        </div>
-
-        <div class="col-md-2">
-          <label class="form-label">Von Jahr</label>
-          <input class="form-control form-control-sm" type="number" v-model="suche.startJahr">
-        </div>
-
-        <div class="col-md-2">
-          <label class="form-label">Bis Jahr</label>
-          <input class="form-control form-control-sm" type="number" v-model="suche.endJahr">
-        </div>
-
-        <SchlagwortSelektor v-model="schlagworte"></SchlagwortSelektor>
+    <form @submit.prevent="sucheStarten">
+      <div class="search-tabs-wrap">
+        <ul class="nav nav-tabs search-tabs mb-0">
+          <li class="nav-item">
+            <button class="nav-link" :class="{ active: activeTab === 'basis' }" type="button"
+              @click="activeTab = 'basis'">
+              Hauptsuche
+            </button>
+          </li>
+          <li class="nav-item">
+            <button class="nav-link" :class="{ active: activeTab === 'details' }" type="button"
+              @click="activeTab = 'details'">
+              Weitere Filter
+            </button>
+          </li>
+        </ul>
       </div>
 
-      <div v-else class="row g-2 align-items-end">
-        <div class="col-md-2">
-          <label class="form-label">Beschreibung</label>
-          <select class="form-select form-select-sm" v-model="suche.beschreibung">
-            <option value="">Alle</option>
-            <option value="ja">Ja</option>
-            <option value="nein">Nein</option>
-          </select>
+      <div class="search-panel">
+        <div v-if="activeTab === 'basis'" class="row g-2 align-items-end">
+          <div class="col-md-4">
+            <label class="form-label">Suchbegriff</label>
+            <input class="form-control form-control-sm" v-model="suche.suchbegriff">
+          </div>
+
+          <div class="col-md-4">
+            <label class="form-label">Ort</label>
+            <select class="form-select form-select-sm" v-model="ort">
+              <option :value="null">
+                Alle
+              </option>
+              <option v-for="ort in orte" :key="ort.id" :value="ort.id">
+                {{ ort.name }}
+              </option>
+            </select>
+          </div>
+
+          <div class="col-md-2">
+            <label class="form-label">Von Jahr</label>
+            <input class="form-control form-control-sm" type="number" v-model="suche.startJahr">
+          </div>
+
+          <div class="col-md-2">
+            <label class="form-label">Bis Jahr</label>
+            <input class="form-control form-control-sm" type="number" v-model="suche.endJahr">
+          </div>
+
+          <SchlagwortSelektor v-model="schlagworte"></SchlagwortSelektor>
         </div>
 
-        <div class="col-md-2">
-          <label class="form-label">Archivstatus</label>
-          <select class="form-select form-select-sm" v-model="suche.archivstatus">
-            <option value="">Alle</option>
-            <option :value="1">Nur erfasst</option>
-            <option :value="2">Vollständig</option>
-            <option :value="3">Veröffentlicht</option>
-          </select>
-        </div>
+        <div v-else class="row g-2 align-items-end">
+          <div class="col-md-2">
+            <label class="form-label">Beschreibung</label>
+            <select class="form-select form-select-sm" v-model="suche.beschreibung">
+              <option value="">Alle</option>
+              <option value="ja">Ja</option>
+              <option value="nein">Nein</option>
+            </select>
+          </div>
 
-        <div class="col-md-2">
-          <label class="form-label">Dokumententyp</label>
-          <select class="form-select form-select-sm" v-model="suche.objekttyp_id">
-            <option value="">Alle</option>
-            <option v-for="objekttyp in objekttypen" :key="objekttyp.id" :value="objekttyp.id">
-              {{ objekttyp.bezeichnung }}
-            </option>
-          </select>
-        </div>
+          <div class="col-md-2">
+            <label class="form-label">Archivstatus</label>
+            <select class="form-select form-select-sm" v-model="suche.archivstatus">
+              <option value="">Alle</option>
+              <option :value="1">Nur erfasst</option>
+              <option :value="2">Vollständig</option>
+              <option :value="3">Veröffentlicht</option>
+            </select>
+          </div>
 
-        <div class="col-md-2">
-          <label class="form-label">Analogobjekt-ID</label>
-          <input class="form-control form-control-sm" type="number" v-model="suche.analog_archiv_id">
-        </div>
+          <div class="col-md-2">
+            <label class="form-label">Dokumententyp</label>
+            <select class="form-select form-select-sm" v-model="suche.objekttyp_id">
+              <option value="">Alle</option>
+              <option v-for="objekttyp in objekttypen" :key="objekttyp.id" :value="objekttyp.id">
+                {{ objekttyp.bezeichnung }}
+              </option>
+            </select>
+          </div>
 
-        <div class="col-md-4">
-          <div class="digitalisiert-box">
-            <div class="form-check compact-check mb-0">
-              <input id="digitalisiert-ohne-datei" class="form-check-input" type="checkbox"
-                v-model="suche.digitalisiert_ohne_datei">
-              <label class="form-check-label" for="digitalisiert-ohne-datei">
-                Digitalisiert ohne Datei
-              </label>
+          <div class="col-md-2">
+            <label class="form-label">Analogobjekt-ID</label>
+            <input class="form-control form-control-sm" type="number" v-model="suche.analog_archiv_id">
+          </div>
+
+          <div class="col-md-4">
+            <div class="digitalisiert-box">
+              <div class="form-check compact-check mb-0">
+                <input id="digitalisiert-ohne-datei" class="form-check-input" type="checkbox"
+                  v-model="suche.digitalisiert_ohne_datei">
+                <label class="form-check-label" for="digitalisiert-ohne-datei">
+                  Digitalisiert ohne Datei
+                </label>
+              </div>
             </div>
           </div>
         </div>
+        <div class="d-flex justify-content-end gap-2 mt-3">
+          <button class="btn btn-secondary" type="button" style="width: 220px" @click="kriterienZuruecksetzen">
+            Kriterien zurücksetzen
+          </button>
+
+          <button class="btn btn-primary" type="submit" style="width: 220px">
+            Suchen
+          </button>
+        </div>
       </div>
-      <div class="search-actions mt-3">
-        <button class="btn btn-primary" @click="sucheStarten">Suchen</button>
-      </div>
-    </div>
+    </form>
     <template #expanded="{ item }">
       <AnalogTable v-if="item.analogobjekt_anzahl" :item="item" />
       <FilesTable v-if="item.datei_anzahl" :item="item" />
@@ -173,6 +181,22 @@ export default {
     this.objekttypen = objektTypenResponse.data.data;
   },
   methods: {
+    kriterienZuruecksetzen() {
+      this.suche = {
+        ort_id: null,
+        schlagworte_ids: [],
+        startJahr: 0,
+        endJahr: 0,
+        objektart: "",
+        beschreibung: "",
+        archivstatus: "",
+        objekttyp_id: "",
+        analog_archiv_id: "",
+        digitalisiert_ohne_datei: false
+      };
+      this.ort = null;
+      this.schlagworte = [];
+    },
     async sucheStarten() {
       const payload = {
         schlagworte_ids: this.schlagworte.map(s => s.id)
