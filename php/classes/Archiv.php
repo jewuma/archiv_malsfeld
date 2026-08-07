@@ -20,22 +20,17 @@ class Archiv {
     $sql = "SELECT 
       an.id,
       an.archiv_id,
-      ob.bezeichnung as objekttyp,
+      an.objekttyp_id,
+      an.quellen_id,
       an.seiten,
-      la.bezeichnung as lagerort,
-      re.kurzbezeichnung as regal,
-      fa.kurzbezeichnung as fach,
-      pl.kurzbezeichnung as platz,
+      an.lagerort_id,
+      an.regal_id,
+      an.fach_id,
+      an.platz_id,
       an.digitalisiert,
       an.dokumentendatum,
-      DATE(an.archivdatum) AS archivdatum, 
-      CONCAT(qu.name,', ',qu.vorname) as quelle
+      DATE(an.archivdatum) AS archivdatum
       FROM analogobjekte an 
-      LEFT JOIN faecher fa ON an.fach_id=fa.id
-      LEFT JOIN lagerorte la ON an.lagerort_id=la.id
-      LEFT JOIN regale re ON an.regal_id=re.id
-      LEFT JOIN objekttypen ob ON an.objekttyp_id=ob.id
-      LEFT JOIN plaetze pl ON an.platz_id=pl.id
       LEFT JOIN quellen qu ON an.quellen_id=qu.id
       WHERE archivobjekt_id=?";
     return ArchivDb::preparedWebQuery($sql, [$id]);
@@ -152,8 +147,8 @@ class Archiv {
     ao.id,
     ao.titel,
     ao.beschreibung,
-    th.name AS thema,
-    o.name AS ort,
+    th.id AS themen_id,
+    o.id AS ort_id,
     ao.zeitraum_start,
     ao.zeitraum_ende,
     COALESCE(an.anzahl, 0) AS analogobjekt_anzahl,

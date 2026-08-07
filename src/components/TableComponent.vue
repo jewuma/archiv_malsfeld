@@ -71,7 +71,7 @@
               :style="field.width ? { width: field.width, minWidth: field.width } : null">
               <template v-if="field.type === 'boolean'">
                 <template v-if="isInlineEditable(field, item)">
-                  <input type="checkbox" :checked="item[field.name]"
+                  <input type="checkbox" :checked="item[field.name]" @click.stop
                     @change="onEdit(item, field.name, $event.target.checked)" class="form-check-input"
                     :ref="'input-' + item.id + '-' + field.name">
                 </template>
@@ -89,8 +89,8 @@
               <template v-else-if="field.type === 'date'">
                 <template v-if="isInlineEditable(field, item)">
                   <input :ref="'input-' + item.id + '-' + field.name" v-model="item[field.name]"
-                    class="form-control form-control-sm" type="date"
-                    @input="onEdit(item, field.name, $event.target.value)" @focus="selectRow(item)">
+                    class="form-control form-control-sm" type="date" @click.stop
+                    @input="onEdit(item, field.name, $event.target.value)">
                 </template>
                 <template v-else>
                   {{ formatDate(item[field.name]) }}
@@ -102,8 +102,8 @@
               <template v-else-if="field.type === 'select'">
                 <template v-if="isInlineEditable(field, item)">
                   <select :ref="'input-' + item.id + '-' + field.name" v-model="item[field.name]"
-                    class="form-select form-select-sm" @change="onEdit(item, field.name, $event.target.value)"
-                    @focus="selectRow(item)">
+                    class="form-select form-select-sm" @click.stop
+                    @change="onEdit(item, field.name, $event.target.value)">
                     <option v-for="opt in field.options" :key="opt.value" :value="opt.value">
                       {{ opt.display }}
                     </option>
@@ -126,7 +126,8 @@
               <AnalogIcon v-else-if="field.type === 'analogobjekt'" :item="item[field.name]"
                 @toggle-expand="$emit('toggle-expand', item)" />
               <template v-else-if="field.type === 'pdf'">
-                <div v-if="item[field.name] !== ''" class="boolean-icon d-flex justify-content-center align-items-center">
+                <div v-if="item[field.name] !== ''"
+                  class="boolean-icon d-flex justify-content-center align-items-center">
                   <button class="btn btn-link" @click.stop="openPdf(item[field.name])" draggable="true"
                     @dragstart="onDragStart($event, item, item[field.name])">
                     <i class="bi bi-file-earmark-pdf-fill text-danger fs-2" />
@@ -137,8 +138,8 @@
                 <template v-if="isInlineEditable(field, item)">
                   <div class="d-flex align-items-center">
                     <input :ref="'input-' + item.id + '-' + field.name" v-model="item[field.name]"
-                      class="form-control form-control-sm" @input="onEdit(item, field.name, $event.target.value)"
-                      @focus="selectRow(item)">
+                      class="form-control form-control-sm" @click.stop
+                      @input="onEdit(item, field.name, $event.target.value)">
                   </div>
                 </template>
                 <template v-else>
