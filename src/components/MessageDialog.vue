@@ -1,6 +1,7 @@
 <template>
   <div class="modal" tabindex="-1" style="display: block; background-color: rgba(0,0,0,.5)">
-    <div ref="dialog" :class="['modal-dialog', { 'modal-xl': xl }]" :style="dialogStyle">
+    <div ref="dialog" :class="['modal-dialog', { 'modal-xl': xl }, { 'modal-full-width': fullWidth }]"
+      :style="dialogStyle">
       <div class="modal-content">
         <div class="modal-header bg-primary text-white" @mousedown="startDrag">
           <h5 class="modal-title">
@@ -62,6 +63,10 @@ export default {
       default: "",
     },
     xl: {
+      type: Boolean,
+      default: false,
+    },
+    fullWidth: {
       type: Boolean,
       default: false,
     },
@@ -166,6 +171,12 @@ export default {
 .modal-header {
   cursor: move;
   user-select: none;
+}
+
+.modal-full-width {
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
 }
 
 .btn-close {

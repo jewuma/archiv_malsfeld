@@ -102,22 +102,34 @@
       </div>
     </div>
     <template #expanded="{ item }">
-      <AnalogTable v-if="item.analogobjekt_anzahl" :item="item" :fixedData="analogFixedData" />
+      <AnalogTable v-if="item.analogobjekt_anzahl" :key="`analog-${item.id}-${item.analogReloadKey || 0}`" :item="item"
+        :fixedData="analogFixedData" @add-analogobjekt="(row) => addAnalogobjekt(item, row)"
+        @delete-analogobjekt="(row) => deleteAnalogobjekt(item, row)" />
       <FilesTable v-if="item.datei_anzahl" :item="item" />
     </template>
   </CardComponent>
+  <MessageDialog v-if="showAddAnalogDialog" title="Analogobjekt anlegen" confirm-text="Speichern"
+    cancel-text="Abbrechen" message="" full-width @confirm="saveAddAnalogobjekt" @cancel="closeAddAnalogDialog">
+    <AnalogTable v-if="addAnalogDialogItem" :item="addAnalogDialogItem" :fixedData="analogFixedData"
+      :persist-edits="false" :show-action-buttons="false" @draft-updated="updateAddAnalogDraft" />
+  </MessageDialog>
+  <MessageDialog v-if="showDeleteAnalogDialog" title="Analogobjekt löschen" confirm-text="Löschen"
+    cancel-text="Abbrechen" :message="deleteAnalogDialogMessage" @confirm="confirmDeleteAnalogobjekt"
+    @cancel="closeDeleteAnalogDialog" />
 </template>
 <script>
 import CardComponent from './CardComponent.vue';
 import SchlagwortSelektor from './SchlagwortSelektor.vue';
 import FilesTable from './FilesTable.vue';
 import AnalogTable from './AnalogTable.vue';
+import MessageDialog from './MessageDialog.vue';
 
 export default {
   components: {
     AnalogTable,
     CardComponent,
     FilesTable,
+    MessageDialog,
     SchlagwortSelektor
   },
   data() {
@@ -133,7 +145,7 @@ export default {
           { name: 'zeitraum_ende', label: 'Zeitraum Ende', type: 'text', 'width': '120px', inlineEdit: true },
           { name: 'analogobjekt', label: 'Analog', type: 'analogobjekt', 'width': '70px' },
           { name: 'archivdatei', label: 'Digital', type: 'files', 'width': '70px' },
-          { name: 'expander', label: '', type: "expander", width: "35px" },
+          { name: 'expander', label: '', type: "expander", width: "50px" },
         ],
       analogFixedData: {
         objekttypen: [],
@@ -175,8 +187,24 @@ export default {
       ort: null,
       tableData: [],
       themen: [],
-      treffer: []
+      treffer: [],
+      showAddAnalogDialog: false,
+      addAnalogDialogItem: null,
+      addAnalogDialogParent: null,
+      addAnalogDialogDraft: null,
+      showDeleteAnalogDialog: false,
+      deleteAnalogDialogParent: null,
+      deleteAnalogDialogRow: null,
     };
+  },
+  computed: {
+    deleteAnalogDialogMessage() {
+      const archivId = this.deleteAnalogDialogRow?.archiv_id ?? '';
+      if (!archivId) {
+        return 'Dieses Analogobjekt wirklich löschen?';
+      }
+      return `Analogobjekt ${archivId} wirklich löschen?`;
+    },
   },
   async mounted() {
     const [orteResponse, objekttypenResponse, themenResponse,
@@ -209,14 +237,135 @@ export default {
     this.fields.find(f => f.name === 'themen_id').options = this.themen.map(thema => ({ value: thema.id, display: thema.name }));
   },
   methods: {
+    addAnalogobjekt(parentItem, sourceRow) {
+      const tempId = -Date.now();
+      const draft = {
+        id: tempId,
+        archiv_id: '',
+        archivobjekt_id: sourceRow.archivobjekt_id ?? parentItem.id,
+        objekttyp_id: 1,
+        seiten: 1,
+        lagerort_id: 1,
+        quellen_id: 110,
+        regal_id: 21,
+        fach_id: 21,
+        platz_id: 71,
+        gesperrt: false,
+        gesperrt_bis: null,
+        dokumentendatum: null,
+        archivdatum: new Date().toISOString().split('T')[0],
+      };
+      this.addAnalogDialogParent = parentItem;
+      this.addAnalogDialogDraft = draft;
+      this.addAnalogDialogItem = {
+        id: parentItem.id,
+        analogobjekte: [draft],
+      };
+      this.showAddAnalogDialog = true;
+    },
+    closeAddAnalogDialog() {
+      this.showAddAnalogDialog = false;
+      this.addAnalogDialogItem = null;
+      this.addAnalogDialogParent = null;
+      this.addAnalogDialogDraft = null;
+    },
+    updateAddAnalogDraft(row) {
+      this.addAnalogDialogDraft = { ...row };
+    },
+    async saveAddAnalogobjekt() {
+      if (!this.addAnalogDialogDraft || !this.addAnalogDialogParent) {
+        return;
+      }
+      const archivId = (this.addAnalogDialogDraft.archiv_id || '').toString().trim();
+      if (archivId.length < 5) {
+        this.$sendMsg(true, 'ArchivID muss mindestens 5 Zeichen lang sein.');
+        return;
+      }
+      const existsResponse = await this.$axios.get('/Analogobjekte/exists/' + archivId);
+      if (existsResponse.data?.data?.exists) {
+        this.$sendMsg(true, 'ArchivID existiert bereits. Bitte eine andere ID wählen.');
+        return;
+      }
+
+      const rest = { ...this.addAnalogDialogDraft };
+      delete rest.id;
+      delete rest.delete;
+      delete rest.add;
+
+      await this.$axios.post('/Analogobjekte/save', {
+        ...rest,
+        archiv_id: archivId,
+        archivobjekt_id: this.addAnalogDialogParent.id,
+      });
+
+      const parentIndex = this.tableData.findIndex(row => row.id === this.addAnalogDialogParent.id);
+      if (parentIndex >= 0) {
+        const parentRow = { ...this.tableData[parentIndex] };
+        const nextCount = Number(parentRow.analogobjekt_anzahl || 0) + 1;
+        parentRow.analogobjekt_anzahl = nextCount;
+        parentRow.analogobjekt = {
+          ...(parentRow.analogobjekt || {}),
+          id: parentRow.id,
+          count: nextCount,
+        };
+        parentRow.hasDetails = true;
+        parentRow.analogReloadKey = (parentRow.analogReloadKey || 0) + 1;
+        this.tableData.splice(parentIndex, 1, parentRow);
+        this.tableData = [...this.tableData];
+      }
+
+      this.$sendMsg(false, 'Analogobjekt wurde angelegt.');
+      this.closeAddAnalogDialog();
+    },
+    deleteAnalogobjekt(parentItem, row) {
+      this.deleteAnalogDialogParent = parentItem;
+      this.deleteAnalogDialogRow = row;
+      this.showDeleteAnalogDialog = true;
+    },
+    closeDeleteAnalogDialog() {
+      this.showDeleteAnalogDialog = false;
+      this.deleteAnalogDialogParent = null;
+      this.deleteAnalogDialogRow = null;
+    },
+    async confirmDeleteAnalogobjekt() {
+      if (!this.deleteAnalogDialogRow?.id || !this.deleteAnalogDialogParent?.id) {
+        this.closeDeleteAnalogDialog();
+        return;
+      }
+
+      await this.$axios.get(`/Analogobjekte/delete/${this.deleteAnalogDialogRow.id}`);
+
+      const parentIndex = this.tableData.findIndex(row => row.id === this.deleteAnalogDialogParent.id);
+      if (parentIndex >= 0) {
+        const parentRow = { ...this.tableData[parentIndex] };
+        const nextCount = Math.max(0, Number(parentRow.analogobjekt_anzahl || 0) - 1);
+        parentRow.analogobjekt_anzahl = nextCount;
+        parentRow.analogobjekt = {
+          ...(parentRow.analogobjekt || {}),
+          id: parentRow.id,
+          count: nextCount,
+        };
+        parentRow.hasDetails = nextCount > 0 || Number(parentRow.datei_anzahl || 0) > 0;
+        parentRow.analogReloadKey = (parentRow.analogReloadKey || 0) + 1;
+        if (nextCount === 0) {
+          parentRow.expanded = false;
+        }
+        this.tableData.splice(parentIndex, 1, parentRow);
+        this.tableData = [...this.tableData];
+      }
+
+      this.$sendMsg(false, 'Analogobjekt wurde gelöscht.');
+      this.closeDeleteAnalogDialog();
+    },
     async entryEdited(editedRow) {
       const payload = {
         id: editedRow.id,
         [editedRow.fieldName]: editedRow.value
       };
-      const response = await this.$axios.post("/Archivobjekte/update", payload);
-      console.log('Server response:', response.data);
-      console.log('Entry edited:', editedRow);
+      await this.$axios.post("/Archivobjekte/update", payload);
+      this.tableData = this.tableData.map(row => row.id === editedRow.id
+        ? { ...row, [editedRow.fieldName]: editedRow.value }
+        : row);
     },
     async sucheStarten() {
       const payload = {

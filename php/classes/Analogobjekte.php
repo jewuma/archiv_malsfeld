@@ -9,6 +9,13 @@ class Analogobjekte extends DbAccess {
   public function getTableName(): string {
     return "analogobjekte";
   }
+  public function exists(int|string $archivId): JsonResponse {
+    $archivId = (int) $archivId;
+    $stmt = $this->db->prepare("SELECT COUNT(*) as count FROM analogobjekte WHERE archiv_id=?");
+    $stmt->execute([$archivId]);
+    $result = $stmt->fetch();
+    return JsonResponse::success(["exists" => $result['count'] > 0]);
+  }
   public function getByArchivId(int|string $archivId): JsonResponse {
     $archivId = (int) $archivId;
     return ArchivDb::preparedWebQuery(

@@ -138,15 +138,16 @@
             <hr>
             <div class="row g-2">
               <div class="col">
-                <button class="btn btn-outline-danger w-100">
+                <button class="btn btn-outline-danger w-100" :disabled="filesSelected === FilesSelected.None"
+                  :title="filesSelected === FilesSelected.None ? 'Es muss mindestens eine Datei ausgewählt sein' : ''">
                   Ausgewählte löschen
                 </button>
               </div>
 
               <div class="col">
-                <span :title="saveDisabledReason">
+                <span :title="optionsDisabledReason">
                   <button class="btn btn-outline-primary w-100" @click="showOptions"
-                    :disabled="filesSelected !== FilesSelected.Multiple">
+                    :disabled="optionsDisabledReason.length > 0">
                     Speicheroptionen
                   </button>
                 </span>
@@ -297,6 +298,19 @@ export default {
     },
     isPfadSelected() {
       return (this.storeBasePath + this.selectedSpeicherpfad).split("/").length > 1 && this.kurztitel.length > 3
+    },
+    optionsDisabledReason() {
+      const ownIsPfadSelected = (this.storeBasePath + this.selectedSpeicherpfad).split("/").length > 1
+      if (ownIsPfadSelected && this.filesSelected == FilesSelected.Multiple)
+        return "";
+
+      if (!ownIsPfadSelected)
+        return "Bitte zuerst ein Zielverzeichnis auswählen.";
+
+      if (this.filesSelected !== FilesSelected.Multiple)
+        return "Es müssen mindestens zwei Dateien ausgewählt werden, um die Speicheroptionen zu ändern.";
+
+      return "";
     },
     saveDisabledReason() {
       if (this.isPfadSelected && !this.nonPdfSelected)

@@ -186,6 +186,15 @@ class ArchivDb {
     // 1. Metadaten holen
     $info = self::getAllowedColumns($table);
     $allowedColumns = $info["allowed"];
+    $dateColumn = $isUpdate ? "aenderungsdatum" : "archivdatum";
+    $userColumn = $isUpdate ? "geaendert_durch" : "archiviert_durch";
+    if (array_key_exists($dateColumn, $allowedColumns)) {
+      $data[$dateColumn] = date("Y-m-d H:i:s");
+    }
+    if (array_key_exists($userColumn, $allowedColumns)) {
+      $username = AppContext::getUsername();
+      $data[$userColumn] = $username;
+    }
     $primary = $info["primary"];
     $autoIncrement = $info["auto_increment"];
     if ($autoIncrement && isset($data[$autoIncrement]) && (($data[$autoIncrement] === "") || ($data[$autoIncrement] === null))) {

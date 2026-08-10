@@ -27,7 +27,8 @@ class Archiv {
       an.regal_id,
       an.fach_id,
       an.platz_id,
-      an.digitalisiert,
+      an.gesperrt,
+      an.gesperrt_bis,
       an.dokumentendatum,
       DATE(an.archivdatum) AS archivdatum
       FROM analogobjekte an 

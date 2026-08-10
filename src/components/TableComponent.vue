@@ -64,6 +64,7 @@
                 field.type === 'analogobjekt' ||
                 field.type === 'pdf' ||
                 field.type === 'time' ||
+                field?.icon ||
                 field?.align === 'center',
               'text-right': field.type === 'currency',
               'is-invalid': getCellError(item, field.name),
@@ -146,8 +147,7 @@
                   {{ item[field.name] }}
                 </template>
               </template>
-              <i v-if="field?.icon" :class="field.icon" class="text-muted" style="margin-left: 4px;"
-                @click="$emit('action', field.emit, item)" />
+              <i v-if="field?.icon" :class="field.icon" @click="$emit('action', field.emit, item)" />
             </td>
           </tr>
           <tr v-if="item.expanded">
@@ -222,6 +222,7 @@ export default {
   data() {
     return {
       activeFilters: [],
+      cellErrors: {},
       checkboxFilters: {},
       currentSort: "",
       currentSortDir: "asc",
@@ -337,7 +338,9 @@ export default {
     tableData: {
       immediate: true,
       handler(newData) {
-        this.localData = JSON.parse(JSON.stringify(newData))
+        this.localData = Array.isArray(newData)
+          ? newData.map((row) => ({ ...row }))
+          : [];
       },
     },
     fields: {
@@ -425,9 +428,11 @@ export default {
       return `${hours}:${minutes}`;
     },
     getCellError(row, fieldName) {
-      const field = this.fields.find((f) => f.name === fieldName);
-      if (!field) return null; // Kein entsprechendes Feld gefunden
-      return this.validateCell(row, field); // Fehler für die Zelle zurückgeben
+      const key = `${row.id}-${fieldName}`;
+      return this.cellErrors[key] || null;
+      // const field = this.fields.find((f) => f.name === fieldName);
+      // if (!field) return null; // Kein entsprechendes Feld gefunden
+      // return await this.validateCell(row, field); // Fehler für die Zelle zurückgeben
     },
     getDisplayValue(field, value) {
       if (!field.options || !value || typeof (field.options) === "string") return value;
@@ -477,9 +482,13 @@ export default {
       }
       this.$emit("file-dropped", { source: payload.source, file: payload.file, target })
     },
-    onEdit(item, fieldName, value) {
+    async onEdit(item, fieldName, value) {
       item[fieldName] = value // nur localData!
-
+      const field = this.fields.find(f => f.name === fieldName)
+      const error = await this.validateCell(item, field)
+      if (error) {
+        return
+      }
       this.debouncedEmit?.(item.id, fieldName, value)
     },
     async openPdf(pdfValue) {
@@ -539,19 +548,22 @@ export default {
     toggleFilter(fieldName) {
       this.checkboxFilters[fieldName] = !this.checkboxFilters[fieldName];
     },
-    validateCell(row, field) {
+    async validateCell(row, field) {
       const value = row[field.name];
-
+      const key = `${row.id}-${field.name}`;
+      delete this.cellErrors[key]; // Vorherigen Fehler löschen
       // Prüfung auf `required`
       if (field.required && (value === null || value === undefined || value === "")) {
+        this.cellErrors[key] = `${field.label} ist erforderlich.`; // Fehlertext setzen
         return `${field.label} ist erforderlich.`;
       }
 
       // Prüfung mit `validate`-Funktion
       if (field.validate && typeof field.validate === "function") {
-        const error = field.validate(row, value);
+        const error = await field.validate(row, value);
         if (error) {
-          return error; // Fehlertext von der `validate`-Funktion
+          this.cellErrors[key] = error; // Fehlertext von der `validate`-Funktion
+          return error;
         }
       }
 
