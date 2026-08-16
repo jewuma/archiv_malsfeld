@@ -1,6 +1,6 @@
 <template>
   <CardComponent title="Archivsuche" :table-data="tableData" :fields="fields" :loading="loading"
-    @toggle-expand="toggleExpand" @row-selected="rowSelected" @edit="entryEdited">
+    @toggle-expand="toggleExpand" @row-selected="rowSelected" @edit="entryEdited" @add-files="addFiles">
     <div class="search-tabs-wrap">
       <ul class="nav nav-tabs search-tabs mb-0">
         <li class="nav-item">
@@ -263,6 +263,9 @@ export default {
       };
       this.showAddAnalogDialog = true;
     },
+    addFiles(id) {
+      console.log("addFiles", id);
+    },
     closeAddAnalogDialog() {
       this.showAddAnalogDialog = false;
       this.addAnalogDialogItem = null;
@@ -406,12 +409,12 @@ export default {
       this.tableData = response.data.data.map(item => {
         item.expanded = false
         if (item.datei_anzahl === 1) {
-          item.archivdatei = { id: item.id, count: 1, firstId: item.erste_datei_id, type: "pdf" }
+          item.archivdatei = { id: item.id, count: 1, firstId: item.erste_datei_id, type: item.erste_datei_typ }
         } else {
           item.archivdatei = { id: item.id, count: item.datei_anzahl }
         }
         if (item.analogobjekt_anzahl === 1) {
-          item.analogobjekt = { id: item.id, count: 1, firstId: item.erste_analogbojekt_id, type: item.erste_analogobjekt_typ_id }
+          item.analogobjekt = { id: item.id, count: 1, firstId: item.erste_analogobjekt_id, type: item.erste_analogobjekt_typ_id }
         } else {
           item.analogobjekt = { id: item.id, count: item.analogobjekt_anzahl }
         }

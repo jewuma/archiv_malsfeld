@@ -45,7 +45,8 @@
             <div class="col-12">
               <TableComponent v-if="tableData.length > 0" ref="childTable" :fields="fields"
                 :filterOptions="filterOptions" :table-data="tableData" :highlight="highlight"
-                @row-selected="rowSelected" @edit="rowEdited" @action="onAction" @toggle-expand="toggleExpand">
+                @row-selected="rowSelected" @edit="rowEdited" @action="onAction" @toggle-expand="toggleExpand"
+                @add-files="addFiles">
                 <template #expanded="slotProps">
                   <slot name="expanded" v-bind="slotProps" />
                 </template>
@@ -131,7 +132,7 @@ export default {
       offsetY: 0,
     }
   },
-  emits: ["action", "cancel", "confirm", "edit", "file-clicked", "file-dropped", "menu-selected", "refresh-files", "row-selected", "select-folder", "toggle-expand"],
+  emits: ["action", "add-files", "cancel", "confirm", "edit", "file-clicked", "file-dropped", "menu-selected", "refresh-files", "row-selected", "select-folder", "toggle-expand"],
   mounted() {
     if (!this.showAsModal) {
       return;
@@ -182,6 +183,9 @@ export default {
     },
   },
   methods: {
+    addFiles(id) {
+      this.$emit("add-files", id);
+    },
     cancel() {
       if (this.showAsModal) {
         this.$emit("cancel");

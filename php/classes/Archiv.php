@@ -156,7 +156,8 @@ class Archiv {
     an.erste_id AS erste_analogobjekt_id,
     an1.objekttyp_id AS erste_analogobjekt_typ_id,
     COALESCE(df.anzahl, 0) AS datei_anzahl,
-    df.erste_id AS erste_datei_id
+    df.erste_id AS erste_datei_id,
+    df.erster_typ AS erste_datei_typ
     FROM archivobjekte ao
     LEFT JOIN orte o ON o.id = ao.ort_id
     LEFT JOIN themen th ON th.id = ao.themen_id
@@ -167,10 +168,25 @@ class Archiv {
     ) an ON an.archivobjekt_id = ao.id
     LEFT JOIN analogobjekte an1
     ON an1.id = an.erste_id
-    LEFT JOIN (
-        SELECT archivobjekt_id, COUNT(*) AS anzahl, MIN(id) AS erste_id
-        FROM dateien GROUP BY archivobjekt_id
-    ) df ON df.archivobjekt_id = ao.id
+LEFT JOIN (
+    SELECT
+        archivobjekt_id,
+        COUNT(*) AS anzahl,
+        MIN(id) AS erste_id,
+        LOWER(
+            SUBSTRING_INDEX(
+                SUBSTRING_INDEX(
+                    GROUP_CONCAT(dateiname ORDER BY id),
+                    ',',
+                    1
+                ),
+                '.',
+                -1
+            )
+        ) AS erster_typ
+    FROM dateien
+    GROUP BY archivobjekt_id
+) df ON df.archivobjekt_id = ao.id
     WHERE 1 
     $schlagwortWhere 
     $ortWhere

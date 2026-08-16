@@ -1,5 +1,5 @@
 <template>
-  <div v-if="item && item.count > 0" class="position-relative d-inline-block">
+  <div v-if="item" class="position-relative d-inline-block">
     <button class="btn btn-link p-0" @click.stop="onClick" :title="tooltip">
       <i :class="iconClass" class="fs-3"></i>
     </button>
@@ -52,13 +52,15 @@ export default {
   },
 
   emits: [
-    "show-files"
+    "show-files", "add-files"
   ],
 
   computed: {
 
     iconClass() {
-
+      if (this.item.count === 0) {
+        return "bi bi-plus-circle-fill text-success"
+      }
       const type = this.item.type || [];
 
       if (["jpg", "jpeg", "png", "gif", "bmp", "tif", "tiff", "webp"].includes(type))
@@ -76,9 +78,9 @@ export default {
     tooltip() {
 
       if (this.item.count === 1)
-        return "Open file";
+        return "Datei öffnen";
 
-      return `${this.item.count} files`;
+      return `${this.item.count} Dateien`;
     }
 
   },
@@ -86,7 +88,10 @@ export default {
   methods: {
 
     onClick() {
-
+      if (this.item.count === 0) {
+        this.$emit("add-files", this.item.id);
+        return;
+      }
       if (this.item.count === 1) {
         this.openFile(this.item.firstId);
       }

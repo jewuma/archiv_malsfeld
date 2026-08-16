@@ -123,7 +123,8 @@
                 </i>
               </template>
               <template v-else-if="field.type === 'password'">********</template>
-              <FilesIcon v-else-if="field.type === 'files'" :item="item[field.name]" />
+              <FilesIcon v-else-if="field.type === 'files'" :item="item[field.name]"
+                @add-files="$emit('add-files', item.id)" @show-files="$emit('toggle-expand', item)" />
               <AnalogIcon v-else-if="field.type === 'analogobjekt'" :item="item[field.name]"
                 @toggle-expand="$emit('toggle-expand', item)" />
               <template v-else-if="field.type === 'pdf'">
@@ -218,7 +219,7 @@ export default {
       default: true
     }
   },
-  emits: ["edit", "row-selected", "file-dropped", "action", "toggle-expand"],
+  emits: ["edit", "row-selected", "file-dropped", "action", "toggle-expand", "add-files"],
   data() {
     return {
       activeFilters: [],
