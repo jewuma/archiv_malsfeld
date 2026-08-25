@@ -47,13 +47,7 @@
                 </select>
               </div>
               <div class="col-9">
-                <label class="form-label">Thema</label>
-                <select class="form-select" v-model="archivObjekt.themen_id">
-                  <option value="">Bitte wählen...</option>
-                  <option v-for="t in themen" :key="t.id" :value="Number(t.id)">
-                    {{ t.name }}
-                  </option>
-                </select>
+                <SchlagwortSelektor v-model="archivObjekt.schlagworte"></SchlagwortSelektor>
               </div>
             </div>
 
@@ -98,8 +92,13 @@
                 <input class="form-control" v-model="digitalObjekt.dateidatum" @blur="normalizeDokumentDatum">
               </div>
               <div class="col-5">
-                <label class="form-label">Kurztitel</label>
-                <input class="form-control" v-model="kurztitel">
+                <label class="form-label">Quelle</label>
+                <select class="form-select" v-model="digitalObjekt.quellen_id">
+                  <option value="">Bitte wählen...</option>
+                  <option v-for="quelle in quellen" :key="quelle.id" :value="Number(quelle.id)">
+                    {{ quelle.display }}
+                  </option>
+                </select>
               </div>
               <div class="col-1">
                 <label class="form-label">Sperre</label>
@@ -113,32 +112,11 @@
                 <input class="form-control" type="text" v-model="digitalObjekt.gesperrt_bis">
               </div>
             </div>
-            <div class="row mb-3">
-              <label class="col-3 col-form-label">Quelle</label>
-              <div class="col-6">
-                <select class="form-select" v-model="digitalObjekt.quellen_id">
-                  <option value="">Bitte wählen...</option>
-                  <option v-for="quelle in quellen" :key="quelle.id" :value="Number(quelle.id)">
-                    {{ quelle.name + ", " + quelle.vorname }}
-                  </option>
-                </select>
-              </div>
-              <div class="col-3">
-                <button class="btn btn-outline-secondary text-nowrap" @click="chooseStoragePath">
-                  Speicherpfad wählen...
-                </button>
-              </div>
-            </div>
-            <div class="mb-3">
-              <label class="form-label">Speicherpfad</label>
-              <div class="row">
-                <span class="badge bg-secondary">{{ displaypfad }}</span>
-              </div>
-            </div>
             <hr>
             <div class="row g-2">
               <div class="col">
                 <button class="btn btn-outline-danger w-100" :disabled="filesSelected === FilesSelected.None"
+                  @click="deleteSelected"
                   :title="filesSelected === FilesSelected.None ? 'Es muss mindestens eine Datei ausgewählt sein' : ''">
                   Ausgewählte löschen
                 </button>
@@ -148,14 +126,14 @@
                 <span :title="optionsDisabledReason">
                   <button class="btn btn-outline-primary w-100" @click="showOptions"
                     :disabled="optionsDisabledReason.length > 0">
-                    Speicheroptionen
+                    Einzeln speichern
                   </button>
                 </span>
               </div>
 
               <div class="col">
                 <span :title="saveDisabledReason">
-                  <button class="btn btn-primary w-100" @click="save" :disabled="!isPfadSelected || nonPdfSelected">
+                  <button class="btn btn-primary w-100" @click="save" :disabled="saveDisabledReason !== ''">
                     {{ filesSelected === FilesSelected.Multiple ? "Zusammenfassen und speichern" : "Speichern" }}
                   </button>
                 </span>
@@ -167,25 +145,23 @@
     </div>
 
     <!-- Modal zur Auswahl des Speicherpfades -->
-    <StoragePathDialog v-if="showStorageDialog" @path-selected="storagePathSelected" :base-path="storeBasePath"
-      @cancel="showStorageDialog = false" @refresh-tree="refreshTree" />
     <AnalogObjektAnlegen v-if="showAnalogObjektAnlegen" :analog-objekt="analogObjekt"
       @create-analog="createAnalogObjekt" @cancel="showAnalogObjektAnlegen = false" />
     <MessageDialog v-if="showDeleteDialog" title="Ausgewählte Dateien wirklich löschen?"
       message="Sollen die gewählten Dateien wirklich gelöscht werden?" @confirm="deleteConfirmed"
       @cancel="showDeleteDialog = false" confirm-text="Löschen" />
-    <ArchivSaveOptionen v-if="showOptionDialog" :files="filesToSave" @cancel="showOptionDialog = false"
-      @apply="saveOptionsApplied" />
+    <ArchivSaveOptionen v-if="showOptionDialog" :files="filesToSave" :defaults="saveOptionDefaults" :quellen="quellen"
+      @cancel="showOptionDialog = false" @apply="saveOptionsApplied" />
   </CardComponent>
 </template>
 
 <script>
 import CardComponent from "./CardComponent.vue";
 import TreeView from "./TreeView.vue";
-import StoragePathDialog from "@/components/StoragePathDialog.vue";
 import AnalogObjektAnlegen from "./AnalogObjektAnlegen.vue";
 import MessageDialog from "./MessageDialog.vue";
 import ArchivSaveOptionen from "./ArchivSaveOptionen.vue";
+import SchlagwortSelektor from "./SchlagwortSelektor.vue";
 export const FilesSelected = Object.freeze({
   None: 0,
   Single: 1,
@@ -194,28 +170,29 @@ export const FilesSelected = Object.freeze({
 export default {
   components: {
     AnalogObjektAnlegen,
+    ArchivSaveOptionen,
     CardComponent,
     MessageDialog,
-    StoragePathDialog,
+    SchlagwortSelektor,
     TreeView,
-    ArchivSaveOptionen,
   },
 
   data() {
     return {
       archivObjekt: {
-        zeitraum_start: "",
-        start_ergaenzung: "",
-        zeitraum_ende: "",
+        analogObjekte: [],
+        archivOption: "CombineFiles",
+        beschreibung: "",
+        digitalObjekte: [],
         ende_ergaenzung: "",
-        themen_id: 0,
+        ort_id: 4,
+        schlagworte: [],
+        start_ergaenzung: "",
         status: 1,
         titel: "",
-        beschreibung: "",
-        ort_id: 4,
-        dateiPfad: "",
-        analogObjekte: [],
-        digitalObjekte: [],
+        zeitraum_ende: "",
+        zeitraum_start: "",
+        sourceFiles: [],
       },
       analogObjekt: {
         archiv_id: "",
@@ -231,9 +208,7 @@ export default {
         digitalisiert: 2
       },
       digitalObjekt: {
-        pfad: "",
-        dateiname: "",
-        objekttyp_id: 1,
+        sourcefilepath: "",
         quellen_id: 0,
         gesperrt: false,
         gesperrt_bis: (parseInt(new Date().toISOString().substring(0, 4)) + 25).toString(),
@@ -242,89 +217,40 @@ export default {
       analogObjektAngelegt: false,
       eingang: [],
       filesToSave: [],
-      kurztitel: "",
       nonPdfSelected: false,
       FilesSelected,
       filesSelected: FilesSelected.None,
-      saveOptions: {
-        archivOption: "CombineFilesToOneArchivObjekt",
-        filePrefix: "",
-        newFilePrefix: false,
-        titles: [],
-      },
       selectedFiles: {},
-      selectedSpeicherpfad: "",
       showAnalogObjektAnlegen: false,
       showDeleteDialog: false,
       showStorageDialog: false,
       showOptionDialog: false,
-      storeBasePath: "",
       orte: [],
       quellen: [],
-      themen: [],
     };
   },
   computed: {
-    displaypfad() {
-      if (this.speicherpfad.length > 120) {
-        return "..." + this.speicherpfad.substring(this.speicherpfad.length - 120);
+    saveOptionDefaults() {
+      return {
+        titel: this.archivObjekt.titel,
+        dateidatum: this.digitalObjekt.dateidatum,
+        gesperrt: this.digitalObjekt.gesperrt,
+        gesperrt_bis: this.digitalObjekt.gesperrt_bis,
+        quellen_id: this.digitalObjekt.quellen_id,
       }
-      return this.speicherpfad;
-    },
-    speicherpfad() {
-      let parts = [];
-      if (this.digitalObjekt.gesperrt)
-        parts.push("ZYX");
-      if (this.digitalObjekt.dateidatum) {
-        parts.push(this.formatDokumentDatum(this.digitalObjekt.dateidatum));
-      } else if (this.archivObjekt.zeitraum_start || this.archivObjekt.zeitraum_ende) {
-        let von = this.archivObjekt.zeitraum_start || "0000";
-        let bis = this.archivObjekt.zeitraum_ende || von;
-        parts.push(`${von}bis${bis}`);
-      }
-      if (this.kurztitel) {
-        parts.push(this.makeFilename(this.kurztitel));
-      }
-      if (this.analogObjekt.archiv_id) {
-        parts.push(this.makeFilename(this.analogObjekt.archiv_id.toString()));
-      }
-      if (this.archivObjekt.ort_id !== 0 && this.orte.length > 0) {
-        const ortsname = this.orte.find(ort => { return ort.id === this.archivObjekt.ort_id })?.name
-        if (ortsname) {
-          parts.push(ortsname.substr(0, 2))
-        }
-      }
-      return this.storeBasePath + this.selectedSpeicherpfad + "/" + parts.join("_") + ".pdf";
-    },
-    isPfadSelected() {
-      return (this.storeBasePath + this.selectedSpeicherpfad).split("/").length > 1 && this.kurztitel.length > 3
     },
     optionsDisabledReason() {
-      const ownIsPfadSelected = (this.storeBasePath + this.selectedSpeicherpfad).split("/").length > 1
-      if (ownIsPfadSelected && this.filesSelected == FilesSelected.Multiple)
-        return "";
-
-      if (!ownIsPfadSelected)
-        return "Bitte zuerst ein Zielverzeichnis auswählen.";
-
       if (this.filesSelected !== FilesSelected.Multiple)
         return "Es müssen mindestens zwei Dateien ausgewählt werden, um die Speicheroptionen zu ändern.";
-
       return "";
     },
     saveDisabledReason() {
-      if (this.isPfadSelected && !this.nonPdfSelected)
-        return "";
-
-      if (!this.isPfadSelected)
-        if (this.kurztitel.length < 4)
-          return "Kurztitel muss mindestens 4 Zeichen lang sein.";
-        else
-          return "Bitte zuerst ein Zielverzeichnis auswählen.";
-
       if (this.nonPdfSelected)
         return "Es können nur PDF-Dateien zusammengefasst werden.";
-
+      if (this.filesSelected === FilesSelected.None)
+        return "Es muss mindestens eine Datei ausgewählt werden";
+      if (this.filesSelected === FilesSelected.Single && this.archivObjekt.titel.trim() === "")
+        return "Es muss ein Titel angegeben werden, um die Datei zu speichern.";
       return "";
     },
   },
@@ -336,11 +262,9 @@ export default {
     }
   },
   async created() {
-    const themenResponse = await this.$axios.get("/Themen/getAll");
-    this.themen = themenResponse.data.data
     const orte = await this.$axios.get("/Orte/getAll");
     this.orte = orte.data.data
-    const quellenResponse = await this.$axios.get("/Quellen/getAll");
+    const quellenResponse = await this.$axios.get("/Quellen/getSelector");
     this.quellen = quellenResponse.data.data;
 
   },
@@ -374,13 +298,11 @@ export default {
           this.archivObjekt.id = an.id
           this.archivObjekt.ort_id = an.ort_id
           this.archivObjekt.titel = an.titel
-          this.archivObjekt.themen_id = an.themen_id
           this.archivObjekt.beschreibung = an.beschreibung
           this.archivObjekt.zeitraum_start = an.zeitraum_start
           this.archivObjekt.start_ergaenzung = an.start_ergaenzung
           this.archivObjekt.zeitraum_ende = an.zeitraum_ende
           this.archivObjekt.ende_ergaenzung = an.ende_ergaenzung
-          this.digitalObjekt.quellen_id = an.quellen_id
           this.analogObjektAngelegt = true
         } else {
           this.analogObjekt.id = null
@@ -398,19 +320,6 @@ export default {
 
         }
       }
-    },
-    chooseStoragePath() {
-      const selectedOrt = this.orte.find(ort => { return ort.id === this.archivObjekt.ort_id })
-      if (selectedOrt === undefined) this.storeBasePath = ""
-      else {
-        this.storeBasePath = selectedOrt.name + "/"
-        const selectedThema = this.themen.find(thema => { return thema.id === this.archivObjekt.themen_id });
-        if (selectedThema && selectedThema.pfadteil) {
-          const prefix = selectedOrt.name.substr(0, 2) + "_"
-          this.storeBasePath += prefix + "Dokumente/" + prefix + selectedThema.pfadteil + "/";
-        }
-      }
-      this.showStorageDialog = true
     },
     collectSelected(nodes, result = []) {
       for (const node of nodes) {
@@ -431,9 +340,14 @@ export default {
 
       return result;
     },
-    createAnalogObjekt(objekt) {
+    async createAnalogObjekt(objekt) {
       this.analogObjekt = objekt
       this.archivObjekt.quellen_id = objekt.quellen_id
+      this.archivObjekt.titel = objekt.titel
+      this.archivObjekt.archivOption = ""
+      this.archivObjekt.analogObjekte = [this.analogObjekt]
+      delete this.archivObjekt.digitalObjekte
+      await this.$axios.post("/Archivobjekte/saveOrUpdate", { archivObjekt: this.archivObjekt })
       this.analogObjektAngelegt = true
       this.showAnalogObjektAnlegen = false
     },
@@ -516,181 +430,137 @@ export default {
       this.setFilesSelected()
     },
     resetData() {
-      const themen = this.themen
       const orte = this.orte
       const quellen = this.quellen
       const initialState = this.$options.data.call(this);
       Object.assign(this.$data, initialState);
-      this.themen = themen
       this.orte = orte
       this.quellen = quellen
-      this.saveOptions = {
-        archivOption: "CombineFilesToOneArchivObjekt",
-        filePrefix: "",
-        newFilePrefix: false,
-        titles: [],
-      }
     },
     async save() {
       //Possible archivOptions: 
-      // "CombineFilesToOneArchivObjekt"
-      // "newArchivObjectPerFile",
-      // "selectTitlePerFile"
-      // "saveAllFilesToOneArchivObject"
-
-      this.nonPdfSelected = false
+      // "CombineFiles"
+      // "SingleFile"
+      // "MultipleFiles"
       const selectedFiles = this.collectSelected(this.eingang)
+
       if (selectedFiles.length === 0) {
         this.$sendMsg(true, "Keine Dateien ausgewählt.")
         return
       }
-      if (this.nonPdfSelected && this.saveOptions.archivOption === "CombineFilesToOneArchivObjekt") {
+
+      if (
+        this.filesSelected === FilesSelected.Multiple &&
+        this.archivObjekt.archivOption !== "MultipleFiles"
+      ) {
+        this.archivObjekt.archivOption = "CombineFiles"
+      }
+
+      if (
+        this.nonPdfSelected &&
+        this.archivObjekt.archivOption === "CombineFiles"
+      ) {
         this.$sendMsg(true, "Es können nur PDF-Dateien zusammengefasst werden.")
         return
       }
-      this.archivObjekt.dateiPfad = this.speicherpfad
-      const targetPath = this.storeBasePath + this.selectedSpeicherpfad
-      const targetFilename = this.speicherpfad.split('/').pop()
-      const archivOption = this.saveOptions.archivOption
-      if (archivOption === "selectTitlePerFile") {
-        if (this.saveOptions.titles.length !== selectedFiles.length) {
-          this.$sendMsg(true, "Anzahl der Titel stimmt nicht mit Anzahl der Dateien überein.")
-          return
-        }
+
+      if (this.filesSelected === FilesSelected.Single) {
+        this.archivObjekt.archivOption = "SingleFile"
       }
 
-      const useFilePrefix = this.saveOptions.newFilePrefix && this.saveOptions.filePrefix.length > 0 ? this.saveOptions.filePrefix : null
       const formattedDate = this.formatDokumentDatum(this.digitalObjekt.dateidatum)
+
       const dateidatum = formattedDate
         ? formattedDate.replace(/^(\d{4})_(\d{2})(\d{2})$/, "$1-$2-$3")
         : ""
+      const status =
+        this.archivObjekt.status > 2 ? this.archivObjekt.status :
+          (this.archivObjekt.beschreibung.trim() === "" ? 1 : 2)
 
-      const baseArchivobjekt = {
+      this.archivObjekt = {
         ...this.archivObjekt,
         zeitraum_start: this.archivObjekt.zeitraum_start ?? "",
         zeitraum_ende: this.archivObjekt.zeitraum_ende ?? "",
         start_ergaenzung: this.archivObjekt.start_ergaenzung ?? "",
         ende_ergaenzung: this.archivObjekt.ende_ergaenzung ?? "",
-        themen_id: Number(this.archivObjekt.themen_id ?? 0),
-        status: Number(this.archivObjekt.status ?? 1),
+        status: Number(status),
       }
 
-      const baseDigitalObjekt = {
-        ...this.digitalObjekt,
-        pfad: targetPath,
-        dateiname: targetFilename,
-        dateidatum,
-        gesperrt_bis: this.digitalObjekt.gesperrt ? this.digitalObjekt.gesperrt_bis : null,
-      }
+      const archivOption = this.archivObjekt.archivOption
 
-      const basePayload = {
-        archivobjekt: baseArchivobjekt,
-      }
+      if (archivOption === "CombineFiles") {
+        this.archivObjekt.sourceFiles = selectedFiles
 
-      if (this.analogObjektAngelegt) {
-        basePayload.analogobjekte = [{
-          ...this.analogObjekt,
-          gesperrt_bis: this.analogObjekt.gesperrt ? this.analogObjekt.gesperrt_bis : null,
+        this.archivObjekt.digitalObjekte = [{
+          dateidatum,
+          titel: this.archivObjekt.titel,
+          quellen_id: this.digitalObjekt.quellen_id,
+          sourcefilepath: "",
+          gesperrt: this.digitalObjekt.gesperrt,
+          gesperrt_bis: this.digitalObjekt.gesperrt
+            ? this.digitalObjekt.gesperrt_bis
+            : null,
         }]
       }
 
+      if (archivOption === "SingleFile") {
+        this.archivObjekt.digitalObjekte = [{
+          dateidatum,
+          titel: this.archivObjekt.titel,
+          quellen_id: this.digitalObjekt.quellen_id,
+          sourcefilepath: selectedFiles[0],
+          gesperrt: this.digitalObjekt.gesperrt,
+          gesperrt_bis: this.digitalObjekt.gesperrt
+            ? this.digitalObjekt.gesperrt_bis
+            : null,
+        }]
+      }
+
+      if (this.analogObjektAngelegt) {
+        this.archivObjekt.analogObjekte = [{
+          ...this.analogObjekt,
+          gesperrt_bis: this.analogObjekt.gesperrt
+            ? this.analogObjekt.gesperrt_bis
+            : null,
+        }]
+      } else {
+        delete this.archivObjekt.analogObjekte
+      }
+      if (this.archivObjekt.digitalObjekte.length === 0) {
+        delete this.archivObjekt.digitalObjekte
+      }
       try {
-        await this.$axios.post("/ArchivFiles/saveFiles", {
-          "files": selectedFiles,
-          "targetPath": targetPath,
-          "targetFilename": targetFilename,
-          "keepSource": true,
-          "combine": archivOption === "CombineFilesToOneArchivObjekt",
-          useFilePrefix
-        })
-
-        switch (archivOption) {
-          case "newArchivObjectPerFile":
-          case "selectTitlePerFile":
-            {
-              let index = 1
-              for (let i = 0; i < selectedFiles.length; i++) {
-                const extension = selectedFiles[i].split('.').pop().toLowerCase();
-                const filename = selectedFiles[i].split('/').pop()
-                const digitalObjekt = {
-                  ...baseDigitalObjekt,
-                  dateiname: useFilePrefix
-                    ? this.saveOptions.filePrefix + "_" + ("00000" + index).slice(-5) + "." + extension
-                    : filename,
-                }
-                const archivobjekt = {
-                  ...baseArchivobjekt,
-                  titel: archivOption === "selectTitlePerFile"
-                    ? this.saveOptions.titles[i]
-                    : baseArchivobjekt.titel,
-                }
-                await this.$axios.post("/Archiveingang/createOrUpdate", {
-                  ...basePayload,
-                  archivobjekt,
-                  digitalobjekte: [digitalObjekt],
-                })
-                index++
-              }
-              break
-            }
-          case "saveAllFilesToOneArchivObject":
-            {
-              let digitalobjekte = []
-              let index = 1
-              for (let i = 0; i < selectedFiles.length; i++) {
-                const extension = selectedFiles[i].split('.').pop().toLowerCase();
-                const filename = selectedFiles[i].split('/').pop()
-                digitalobjekte.push({
-                  ...baseDigitalObjekt,
-                  dateiname: useFilePrefix
-                    ? this.saveOptions.filePrefix + "_" + ("00000" + index).slice(-5) + "." + extension
-                    : filename,
-                })
-                index++
-              }
-              await this.$axios.post("/Archiveingang/createOrUpdate", {
-                ...basePayload,
-                digitalobjekte,
-              })
-              break
-            }
-          case "CombineFilesToOneArchivObjekt":
-            await this.$axios.post("/Archiveingang/createOrUpdate", {
-              ...basePayload,
-              digitalobjekte: [baseDigitalObjekt],
-            })
-            break
-          default:
-            throw new Error("Unbekannte Speicheroption")
-        }
-
-        await this.$axios.post("/ArchivFiles/finalizeSavedFiles", {
-          "files": selectedFiles
-        })
-        if (selectedFiles.length === 1) {
-          this.$sendMsg(false, "Datei gespeichert")
-        } else {
-          this.$sendMsg(false, "Dateien gespeichert")
-        }
-        this.refreshTree()
-        this.resetData()
+        await this.$axios.post(
+          "/Archivobjekte/saveOrUpdate",
+          { archivObjekt: this.archivObjekt }
+        )
       } catch (error) {
-        await this.$axios.post("/ArchivFiles/cleanupSavedFile", {
-          "targetPath": targetPath,
-          "targetFilename": targetFilename,
-          "files": selectedFiles,
-          "combine": archivOption === "CombineFilesToOneArchivObjekt",
-          useFilePrefix
-        })
-        const errorMessage = error?.response?.data?.message || error?.message || "Unbekannter Fehler"
-        this.$sendMsg(true, "Fehler beim Speichern: " + errorMessage)
+        this.$sendMsg(
+          true,
+          "Fehler beim Speichern des Archivobjekts. " +
+          (
+            error?.response?.data?.message ||
+            error?.message ||
+            "Unbekannter Fehler"
+          )
+        )
       }
     },
     async saveOptionsApplied(options) {
       this.showOptionDialog = false
-      this.saveOptions = {
-        ...options
-      }
+      this.archivObjekt.archivOption = "MultipleFiles"
+
+      this.archivObjekt.digitalObjekte = options.titles.map((title, index) => ({
+        titel: title,
+        sourcefilepath: this.filesToSave[index],
+        quellen_id: options.quellen_ids[index] ?? 0,
+        gesperrt: options.gesperrt[index] ?? false,
+        gesperrt_bis: options.gesperrt[index]
+          ? options.gesperrt_bis[index]
+          : null,
+        dateidatum: options.dateidaten[index] ?? "",
+      }))
+
       await this.save()
     },
     setFilesSelected() {
@@ -710,7 +580,92 @@ export default {
       this.showStorageDialog = false
     },
   }
+  // try {
+  //   await this.$axios.post("/ArchivFiles/saveFiles", {
+  //     "files": selectedFiles,
+  //     "keepSource": true,
+  //     "combine": archivOption === "CombineFiles",
+  //   })
 
+  //   switch (archivOption) {
+  //     case "newArchivObjectPerFile":
+  //     case "selectTitlePerFile":
+  //       {
+  //         let index = 1
+  //         for (let i = 0; i < selectedFiles.length; i++) {
+  //           const extension = selectedFiles[i].split('.').pop().toLowerCase();
+  //           const filename = selectedFiles[i].split('/').pop()
+  //           const digitalObjekt = {
+  //             ...baseDigitalObjekt,
+  //             dateiname: useFilePrefix
+  //               ? this.saveOptions.filePrefix + "_" + ("00000" + index).slice(-5) + "." + extension
+  //               : filename,
+  //           }
+  //           const archivobjekt = {
+  //             ...baseArchivobjekt,
+  //             titel: archivOption === "selectTitlePerFile"
+  //               ? this.saveOptions.titles[i]
+  //               : baseArchivobjekt.titel,
+  //           }
+  //           await this.$axios.post("/Archiveingang/createOrUpdate", {
+  //             ...basePayload,
+  //             archivobjekt,
+  //             digitalobjekte: [digitalObjekt],
+  //           })
+  //           index++
+  //         }
+  //         break
+  //       }
+  //     case "saveAllFilesToOneArchivObject":
+  //       {
+  //         let digitalobjekte = []
+  //         let index = 1
+  //         for (let i = 0; i < selectedFiles.length; i++) {
+  //           const extension = selectedFiles[i].split('.').pop().toLowerCase();
+  //           const filename = selectedFiles[i].split('/').pop()
+  //           digitalobjekte.push({
+  //             ...baseDigitalObjekt,
+  //             dateiname: useFilePrefix
+  //               ? this.saveOptions.filePrefix + "_" + ("00000" + index).slice(-5) + "." + extension
+  //               : filename,
+  //           })
+  //           index++
+  //         }
+  //         await this.$axios.post("/Archiveingang/createOrUpdate", {
+  //           ...basePayload,
+  //           digitalobjekte,
+  //         })
+  //         break
+  //       }
+  //     case "CombineFilesToOneArchivObjekt":
+  //       await this.$axios.post("/Archiveingang/createOrUpdate", {
+  //         ...basePayload,
+  //         digitalobjekte: [baseDigitalObjekt],
+  //       })
+  //       break
+  //     default:
+  //       throw new Error("Unbekannte Speicheroption")
+  //   }
+
+  //   await this.$axios.post("/ArchivFiles/finalizeSavedFiles", {
+  //     "files": selectedFiles
+  //   })
+  //   if (selectedFiles.length === 1) {
+  //     this.$sendMsg(false, "Datei gespeichert")
+  //   } else {
+  //     this.$sendMsg(false, "Dateien gespeichert")
+  //   }
+  //   this.refreshTree()
+  //   this.resetData()
+  // } catch (error) {
+  //   await this.$axios.post("/ArchivFiles/cleanupSavedFile", {
+  //     "files": selectedFiles,
+  //     "combine": archivOption === "CombineFilesToOneArchivObjekt",
+  //     useFilePrefix
+  //   })
+  //   const errorMessage = error?.response?.data?.message || error?.message || "Unbekannter Fehler"
+  //   this.$sendMsg(true, "Fehler beim Speichern: " + errorMessage)
+  // }
 };
 </script>
 <style scoped>

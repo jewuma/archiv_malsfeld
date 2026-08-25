@@ -24,6 +24,13 @@
           <input class="form-control" v-model="objekt.seiten">
         </div>
       </div>
+      <div class="row mb-3 align-items-center">
+        <label class="col-sm-3 col-form-label">Titel</label>
+
+        <div class="col-sm-9">
+          <input class="form-control" v-model="objekt.titel">
+        </div>
+      </div>
 
       <div class="row mb-3 align-items-center">
         <label class="col-sm-3 col-form-label">Quelle</label>
@@ -31,7 +38,7 @@
         <div class="col-sm-9">
           <select class="form-select" v-model="objekt.quellen_id">
             <option v-for="quelle in stammdaten.quellen" :key="quelle.id" :value="quelle.id">
-              {{ quelle.name }}, {{ quelle.vorname }}
+              {{ quelle.display }}
             </option>
           </select>
         </div>
@@ -155,7 +162,7 @@ export default {
     async getStammdaten() {
       const objektTypenResponse = await this.$axios.get("/Objekttypen/getAll");
       this.stammdaten.objektTypen = objektTypenResponse.data.data.filter(typ => typ.analog_digital === "A");
-      const quellenResponse = await this.$axios.get("/Quellen/getAll");
+      const quellenResponse = await this.$axios.get("/Quellen/getSelector");
       this.stammdaten.quellen = quellenResponse.data.data;
       const lagerorteResponse = await this.$axios.get("/Lagerorte/getAll");
       this.stammdaten.lagerorte = lagerorteResponse.data.data;

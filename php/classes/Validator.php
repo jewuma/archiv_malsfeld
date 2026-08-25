@@ -13,10 +13,10 @@ class Validator {
     if (json_last_error() !== JSON_ERROR_NONE) {
       throw new \Exception("Ungültiges JSON.", 400);
     }
-    $optionalObjects = [];
+    $optionalContainers = [];
     $exists = false;
     foreach ($schema as $path => $definition) {
-      if (is_string($definition) && str_starts_with($definition, "object")) {
+      if (is_string($definition) && self::isContainerDefinition($definition)) {
         if (self::hasWildcard($path)) {
           $matches = self::getWildcardMatches($data, $path);
           $exists = count($matches) > 0;
@@ -26,12 +26,12 @@ class Validator {
         }
 
         if (!$exists && str_contains($definition, "optional")) {
-          $optionalObjects[] = $path;
+          $optionalContainers[] = $path;
         }
       }
     }
     foreach ($schema as $key => $definition) {
-      foreach ($optionalObjects as $object) {
+      foreach ($optionalContainers as $object) {
         if (str_starts_with($key . ".", $object . ".")) {
           continue 2;
         }
@@ -229,6 +229,11 @@ class Validator {
       }
     }
     return $data;
+  }
+  private static function isContainerDefinition(string $definition): bool {
+    $type = trim(explode(',', $definition)[0]);
+
+    return in_array($type, ['object', 'array'], true);
   }
   private static function hasWildcard(string $path): bool {
     return str_contains($path, "*");

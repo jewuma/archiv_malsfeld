@@ -11,11 +11,11 @@
       </div>
     </div>
   </div>
-  <div class="col-md-3 d-flex align-items-end">
-    <div>
-      <span v-for="wort in lokal" :key="wort.id" class="badge bg-primary me-2 mb-2">
-        {{ wort.bezeichnung }}
-        <span class="ms-1" style="cursor:pointer" @click="removeSchlagwort(wort.id)">×</span>
+  <div class="col-md-9 d-flex align-items-end mt-2">
+    <div class="schlagwort-liste">
+      <span v-for="id in lokal" :key="id" class="schlagwort-badge badge bg-primary">
+        {{schlagworte.find(s => s.id === id)?.bezeichnung}}
+        <span class="ms-1" style="cursor:pointer" @click="removeSchlagwort(id)">×</span>
       </span>
     </div>
   </div>
@@ -61,9 +61,9 @@ export default {
   },
   methods: {
     addSchlagwort(wort) {
-      if (this.lokal.some(s => s.id === wort.id))
-        return;
-      this.lokal.push(wort);
+      if (!this.lokal.includes(wort.id)) {
+        this.lokal.push(wort.id);
+      }
       this.schlagwortSuche = "";
       this.vorschlaege = [];
       this.ausgewaehlt = 0;
@@ -124,7 +124,7 @@ export default {
     },
     removeSchlagwort(id) {
       this.lokal =
-        this.lokal.filter(s => s.id !== id);
+        this.lokal.filter(s => s !== id);
     },
 
     uebernehmenErsten() {
@@ -144,3 +144,17 @@ export default {
   }
 };
 </script>
+<style scoped>
+.schlagwort-liste {
+  display: flex;
+  flex-flow: row wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.schlagwort-badge {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+}
+</style>

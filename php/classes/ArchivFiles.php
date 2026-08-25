@@ -11,17 +11,27 @@ use Imagick;
 require_once __DIR__ . "/../.clientData.inc.php";
 
 class ArchivFiles {
-    private string $baseDir = ARCHIV_FILE_PATH;
-    private string $inboxDir = ARCHIV_FILE_PATH . "archiveingang/";
+    public static string $baseDir = ARCHIV_FILE_PATH;
+    public static string $inboxDir = ARCHIV_INBOX_PATH;
     //private string $cacheDir = ARCHIV_FILE_PATH . "cache/";
     private int $modifiedbaseDirLength = 0;
     private \finfo|bool $finfo;
     public function __construct() {
         $this->finfo = finfo_open(FILEINFO_MIME_TYPE);
     }
+    public static function buildFilePath(int $id, string $extension): string {
+        if ($id < 1000000) throw new \Exception("Datei-Id ungültig", 500);
+        $folder = self::$baseDir . substr((string)$id, 0, 4);
+        if (!is_dir($folder)) {
+            if (!mkdir($folder, 0777, true) && !is_dir($folder)) {
+                throw new \Exception("Fehler beim Erstellen des Verzeichnisses: $folder", 500);
+            }
+        }
+        return $folder . "/" . $id . "." . $extension;
+    }
     public function createFolder(string $parameters): JsonResponse {
         $param = Validator::validateJsonAgainstSchema($parameters, ["directory" => "string", "folderName" => "filename"]);
-        $directory = realpath($this->baseDir . $param["directory"]);
+        $directory = realpath(self::$baseDir . $param["directory"]);
         if (!$directory || !is_dir($directory)) {
             throw new \Exception("Verzeichnis existiert nicht", 404);
         }
@@ -36,10 +46,20 @@ class ArchivFiles {
         }
         return new JsonResponse(200, [], "OK");
     }
+    public static function deleteInboxFiles(array $files): void {
+        foreach ($files as $file) {
+            $path = realpath(self::$inboxDir . $file);
+            if (!$path) {
+                throw new \Exception("Datei nicht gefunden", 404);
+            } else {
+                unlink($path);
+            }
+        }
+    }
     public function deleteMulti(string $parameters): JsonResponse {
         $param = Validator::validateJsonAgainstSchema($parameters, ["files" => "array"]);
         foreach ($param["files"] as $file) {
-            $path = realpath($this->inboxDir . $file);
+            $path = realpath(self::$inboxDir . $file);
             if (!$path) {
                 throw new \Exception("Datei nicht gefunden", 404);
             } else {
@@ -53,7 +73,7 @@ class ArchivFiles {
     }
     public function get(int $id): FileResponse {
         $db = ArchivDb::getDbInstance();
-        $sql = "SELECT pfad, dateiname FROM dateien WHERE id = :id";
+        $sql = "SELECT dateiendung FROM digitalobjekte WHERE id = :id";
         $stmt = $db->prepare($sql);
         $stmt->bindValue(":id", $id);
         $stmt->execute();
@@ -61,8 +81,10 @@ class ArchivFiles {
         if (!$file) {
             throw new \Exception("Id nicht gefunden", 400);
         }
-        $dateiname = $file["dateiname"];
-        $pfad = $this->baseDir . $file["pfad"] . "/" . $dateiname;
+        $dateiendung = $file["dateiendung"];
+        $dateiname = $id . "." . $dateiendung;
+        $subfolder = substr($id, 0, 4);
+        $pfad = self::$baseDir . $subfolder . "/" . $id . "." . $dateiendung;
         $finfo = finfo_open(FILEINFO_MIME_TYPE);
         $mimeType = finfo_file($finfo, $pfad);
         return new FileResponse(
@@ -74,7 +96,7 @@ class ArchivFiles {
     }
     public function getByPath(string $parameters): FileResponse {
         $param = Validator::validateJsonAgainstSchema($parameters, ["path" => "string", "fromInbox" => "boolean"]);
-        $path = $param["fromInbox"] ? realpath($this->inboxDir . $param["path"]) : realpath($this->baseDir . $param["path"]);
+        $path = $param["fromInbox"] ? realpath(self::$inboxDir . $param["path"]) : realpath(self::$baseDir . $param["path"]);
         if (!$path) {
             throw new \Exception("Datei existiert nicht");
         }
@@ -95,7 +117,7 @@ class ArchivFiles {
         if ($extension === 'pdf') {
             return $file;
         }
-        $file->filePathForStreaming = substr($file->filePathForStreaming, strlen($this->baseDir));
+        $file->filePathForStreaming = substr($file->filePathForStreaming, strlen(self::$baseDir));
         return $this->getPreviewByPath(json_encode(["path" => $file->filePathForStreaming, "fromInbox" => false]));
     }
     public function getPreviewByPath(string $parameters): FileResponse {
@@ -154,7 +176,11 @@ class ArchivFiles {
         );
         $directory = $param["directory"] ?? "";
         $withFiles = $param["withFiles"] ?? false;
-        $directory = $this->baseDir . $directory;
+        if ($directory === "archiveingang") {
+            $directory = self::$inboxDir;
+        } else {
+            $directory = self::$baseDir . $directory;
+        }
         $directory = rtrim($directory, DIRECTORY_SEPARATOR);
         $this->modifiedbaseDirLength = strlen($directory . DIRECTORY_SEPARATOR);
         return new JsonResponse(200, [$this->buildNode($directory, $withFiles)]);
@@ -219,122 +245,142 @@ class ArchivFiles {
 
         return $node;
     }
-    public function saveFiles(string $parameters) {
-        $param = Validator::validateJsonAgainstSchema($parameters, [
-            "files" => "array",
-            "targetPath" => "string",
-            "targetFilename" => "string",
-            "keepSource" => "boolean,optional",
-            "combine" => "boolean,optional",
-            "useFilePrefix" => "string,optional,nullOK"
-        ]);
-
-        $files = $param["files"];
-        $keepSource = $param["keepSource"] ?? false;
-        $combine = $param["combine"] ?? false;
-        $useFilePrefix = null;
-        if (isset($param["useFilePrefix"]) && is_string($param["useFilePrefix"]) && $param["useFilePrefix"] !== "") {
-            $useFilePrefix = $param["useFilePrefix"];
+    public static function combineFiles(array $inputFiles): string {
+        if (count($inputFiles) < 2) {
+            throw new \Exception("Mindestens zwei Dateien erforderlich, um sie zu kombinieren.", 400);
         }
-
-        if (count($files) === 0) {
-            throw new \Exception("Keine Dateien angegeben", 400);
-        }
-
-        $inputFiles = [];
-
-        foreach ($files as $file) {
-            $path = realpath($this->inboxDir . $file);
-            if (!$path) {
-                throw new \Exception("Datei nicht gefunden", 404);
+        foreach ($inputFiles as $file) {
+            $path = realpath(self::$inboxDir . $file);
+            if (!str_starts_with($path, self::$inboxDir) || !file_exists($path)) {
+                throw new \Exception("Datei nicht gefunden: " . basename($file), 404);
             }
-            $inputFiles[] = $path;
-        }
-        if (count($inputFiles) === 0) {
-            throw new \Exception("Keine Quelldateien übergeben", 400);
-        }
-        $targetPath = realpath($this->baseDir . $param["targetPath"]);
-        if (!is_dir($targetPath)) {
-            throw new \Exception("Zielpfad nicht vorhanden", 404);
-        }
-        if (substr($targetPath, -1) !== DIRECTORY_SEPARATOR)
-            $targetPath .= DIRECTORY_SEPARATOR;
-        $testName = basename($targetPath . $param["targetFilename"]);
-        if ($testName !== $param["targetFilename"]) {
-            throw new \Exception("Ungültiger Dateiname", 400);
-        }
-        $targetFile = $targetPath . $param["targetFilename"];
-        if (file_exists($targetFile)) {
-            throw new \Exception("Datei existiert bereits", 400);
-        }
-        /*
-         * qpdf Syntax:
-         * qpdf --empty --pages file1.pdf file2.pdf -- output.pdf
-         */
-        if ($combine && count($inputFiles) > 1) {
-            $escapedInputFiles = array_map("escapeshellarg", $inputFiles);
-            $command = sprintf(
-                "qpdf --warning-exit-0 --empty --pages %s -- %s 2>&1",
-                implode(" ", $escapedInputFiles),
-                escapeshellarg($targetFile)
-            );
-            exec($command, $output, $returnCode);
-            if ($returnCode !== 0) {
-                throw new \Exception("PDF-Zusammenführung fehlgeschlagen: " . implode("\n", $output), 500);
-            }
-            if (!$keepSource) {
-                foreach ($inputFiles as $file) {
-                    unlink($file);
-                }
-            }
-        } else {
-            if (count($inputFiles) > 1) {
-                $savedFiles = [];
-                $index = 1;
-                foreach ($inputFiles as $sourceFile) {
-                    $sourceExtension = strtolower(pathinfo($sourceFile, PATHINFO_EXTENSION));
-                    $sourceBasename = basename($sourceFile);
-                    if ($useFilePrefix !== null) {
-                        $targetName = $useFilePrefix . "_" . str_pad((string) $index, 5, "0", STR_PAD_LEFT);
-                        if ($sourceExtension !== "") {
-                            $targetName .= "." . $sourceExtension;
-                        }
-                    } else {
-                        $targetName = $sourceBasename;
-                    }
-
-                    if (basename($targetName) !== $targetName) {
-                        throw new \Exception("Ungültiger Dateiname", 400);
-                    }
-
-                    $targetFileForSource = $targetPath . $targetName;
-                    if (file_exists($targetFileForSource)) {
-                        throw new \Exception("Datei existiert bereits", 400);
-                    }
-
-                    if ($keepSource) {
-                        if (!copy($sourceFile, $targetFileForSource)) {
-                            throw new \Exception("Speichern fehlgeschlagen");
-                        }
-                    } elseif (!rename($sourceFile, $targetFileForSource)) {
-                        throw new \Exception("Speichern fehlgeschlagen");
-                    }
-                    $savedFiles[] = $targetFileForSource;
-                    $index++;
-                }
-                return new JsonResponse(200, ["files" => $savedFiles]);
-            }
-            $sourceFile = $inputFiles[0];
-            if ($keepSource) {
-                if (!copy($sourceFile, $targetFile)) {
-                    throw new \Exception("Speichern fehlgeschlagen");
-                }
-            } elseif (!rename($sourceFile, $targetFile)) {
-                throw new \Exception("Speichern fehlgeschlagen");
+            $extension = strtolower(pathinfo($file, PATHINFO_EXTENSION));
+            if ($extension !== 'pdf') {
+                throw new \Exception("Nur PDF-Dateien können kombiniert werden. Ungültige Datei: " . basename($file), 400);
             }
         }
-        return new JsonResponse(200, ["file" => $targetFile]);
+        $targetFile = self::$inboxDir . uniqid("combined_", true) . ".pdf";
+
+        $escapedInputFiles = array_map(function ($file) {
+            return escapeshellarg(realpath(self::$inboxDir . $file));
+        }, $inputFiles);
+        $command = sprintf(
+            "qpdf --warning-exit-0 --empty --pages %s -- %s 2>&1",
+            implode(" ", $escapedInputFiles),
+            escapeshellarg($targetFile)
+        );
+
+        exec($command, $output, $returnCode);
+
+        if ($returnCode !== 0) {
+            throw new \Exception("PDF-Zusammenführung fehlgeschlagen: " . implode("\n", $output), 500);
+        }
+        $targetFile = substr($targetFile, strlen(self::$inboxDir));
+        return $targetFile;
     }
+    // public function saveFiles(string $parameters) {
+    //     $param = Validator::validateJsonAgainstSchema($parameters, [
+    //         "files" => "array",
+    //         "keepSource" => "boolean,optional",
+    //         "combine" => "boolean,optional",
+    //         "useFilePrefix" => "string,optional,nullOK"
+    //     ]);
+
+    //     $files = $param["files"];
+    //     $keepSource = $param["keepSource"] ?? false;
+    //     $combine = $param["combine"] ?? false;
+    //     $useFilePrefix = null;
+    //     if (isset($param["useFilePrefix"]) && is_string($param["useFilePrefix"]) && $param["useFilePrefix"] !== "") {
+    //         $useFilePrefix = $param["useFilePrefix"];
+    //     }
+
+    //     if (count($files) === 0) {
+    //         throw new \Exception("Keine Dateien angegeben", 400);
+    //     }
+
+    //     $inputFiles = [];
+
+    //     foreach ($files as $file) {
+    //         $path = realpath($this->inboxDir . $file);
+    //         if (!$path) {
+    //             throw new \Exception("Datei nicht gefunden", 404);
+    //         }
+    //         $inputFiles[] = $path;
+    //     }
+    //     if (count($inputFiles) === 0) {
+    //         throw new \Exception("Keine Quelldateien übergeben", 400);
+    //     }
+    //     /*
+    //      * qpdf Syntax:
+    //      * qpdf --empty --pages file1.pdf file2.pdf -- output.pdf
+    //      */
+    //     $targetFile= $this->baseDir . uniqid("combined_", true) . ".pdf";
+    //     if ($combine && count($inputFiles) > 1) {
+    //         $escapedInputFiles = array_map("escapeshellarg", $inputFiles);
+    //         $command = sprintf(
+    //             "qpdf --warning-exit-0 --empty --pages %s -- %s 2>&1",
+    //             implode(" ", $escapedInputFiles),
+    //             escapeshellarg($targetFile)
+    //         );
+    //         exec($command, $output, $returnCode);
+    //         if ($returnCode !== 0) {
+    //             throw new \Exception("PDF-Zusammenführung fehlgeschlagen: " . implode("\n", $output), 500);
+    //         }
+    //         if (!$keepSource) {
+    //             foreach ($inputFiles as $file) {
+    //                 unlink($file);
+    //             }
+    //         }
+    //     } else {
+    //         if (count($inputFiles) > 1) {
+    //             $savedFiles = [];
+    //             $index = 1;
+    //             foreach ($inputFiles as $sourceFile) {
+    //                 $sourceExtension = strtolower(pathinfo($sourceFile, PATHINFO_EXTENSION));
+    //                 $sourceBasename = basename($sourceFile);
+    //                 if ($useFilePrefix !== null) {
+    //                     $targetName = $useFilePrefix . "_" . str_pad((string) $index, 5, "0", STR_PAD_LEFT);
+    //                     if ($sourceExtension !== "") {
+    //                         $targetName .= "." . $sourceExtension;
+    //                     }
+    //                 } else {
+    //                     $targetName = $sourceBasename;
+    //                 }
+
+    //                 if (basename($targetName) !== $targetName) {
+    //                     throw new \Exception("Ungültiger Dateiname", 400);
+    //                 }
+
+    //                 $targetFileForSource = $targetPath . $targetName;
+    //                 if (file_exists($targetFileForSource)) {
+    //                     throw new \Exception("Datei existiert bereits", 400);
+    //                 }
+
+    //                 if ($keepSource) {
+    //                     if (!copy($sourceFile, $targetFileForSource)) {
+    //                         throw new \Exception("Speichern fehlgeschlagen");
+    //                     }
+    //                 } elseif (!rename($sourceFile, $targetFileForSource)) {
+    //                     throw new \Exception("Speichern fehlgeschlagen");
+    //                 }
+    //                 $savedFiles[] = $targetFileForSource;
+    //                 $index++;
+    //             }
+    //             return new JsonResponse(200, ["files" => $savedFiles]);
+    //         }
+    //         $sourceFile = $inputFiles[0];
+    //         $sourceExtension = strtolower(pathinfo($sourceFile, PATHINFO_EXTENSION));
+    //         $targetFile = $this->baseDir . uniqid("file_", true) . ($sourceExtension !== "" ? "." . $sourceExtension : "");
+    //         if ($keepSource) {
+    //             if (!copy($sourceFile, $targetFile)) {
+    //                 throw new \Exception("Speichern fehlgeschlagen");
+    //             }
+    //         } elseif (!rename($sourceFile, $targetFile)) {
+    //             throw new \Exception("Speichern fehlgeschlagen");
+    //         }
+    //     }
+    //     return new JsonResponse(200, ["file" => $targetFile]);
+    // }
 
     public function finalizeSavedFiles(string $parameters): JsonResponse {
         $param = Validator::validateJsonAgainstSchema($parameters, [

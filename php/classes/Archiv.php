@@ -42,15 +42,17 @@ class Archiv {
       throw new \Exception("Archivobjekt-Id fehlt");
     }
     $sql = "SELECT 
-      da.id,
-      da.pfad,
-      da.dateiname,
-      ob.bezeichnung as objekttyp,
-      da.dateidatum,
-      DATE(da.archivdatum) AS archivdatum 
-      FROM dateien da 
-      LEFT JOIN objekttypen ob ON da.objekttyp_id=ob.id
-      WHERE archivobjekt_id=?";
+      di.id,
+      di.dateidatum,
+      di.titel,
+      di.quellen_id,
+      ob.bezeichnung AS objekttyp,
+      di.dateiendung,
+      DATE(di.archivdatum) AS archivdatum 
+      FROM digitalobjekte di
+      LEFT JOIN endungen_objekttypen eo ON di.dateiendung=eo.dateiendung
+      LEFT JOIN objekttypen ob ON eo.objekttyp_id=ob.id
+      WHERE di.archivobjekt_id=?";
     return ArchivDb::preparedWebQuery($sql, [$id]);
   }
   public function getStats(): JsonResponse {
@@ -71,7 +73,7 @@ class Archiv {
      FROM analogobjekte) AS analog,
 
     (SELECT COUNT(*) 
-     FROM dateien) AS digital";
+     FROM digitalobjekte) AS digital";
     $sql2 = "SELECT o.name, COUNT(*) AS anzahl
       FROM archivobjekte ao
       JOIN orte o ON o.id = ao.ort_id
@@ -123,9 +125,10 @@ class Archiv {
           AND an3.objekttyp_id = " . $param["objekttyp_id"] . "
         )
         OR EXISTS (
-          SELECT 1 FROM dateien df2
+          SELECT 1 FROM digitalobjekte df2
           WHERE df2.archivobjekt_id = ao.id
-          AND df2.objekttyp_id = " . $param["objekttyp_id"] . "
+          AND " . $param["objekttyp_id"] . " IN 
+          (SELECT objekttyp_id FROM endungen_objekttypen WHERE dateiendung = df2.dateiendung)
         )
       )"
       : "";
@@ -169,23 +172,19 @@ class Archiv {
     LEFT JOIN analogobjekte an1
     ON an1.id = an.erste_id
 LEFT JOIN (
-    SELECT
-        archivobjekt_id,
-        COUNT(*) AS anzahl,
-        MIN(id) AS erste_id,
-        LOWER(
-            SUBSTRING_INDEX(
-                SUBSTRING_INDEX(
-                    GROUP_CONCAT(dateiname ORDER BY id),
-                    ',',
-                    1
-                ),
-                '.',
-                -1
-            )
-        ) AS erster_typ
-    FROM dateien
-    GROUP BY archivobjekt_id
+  SELECT
+      archivobjekt_id,
+      COUNT(*) AS anzahl,
+      MIN(id) AS erste_id,
+      LOWER(
+          SUBSTRING_INDEX(
+              GROUP_CONCAT(dateiendung ORDER BY id),
+              ',',
+              1
+          )
+      ) AS erster_typ
+  FROM digitalobjekte
+  GROUP BY archivobjekt_id
 ) df ON df.archivobjekt_id = ao.id
     WHERE 1 
     $schlagwortWhere 
