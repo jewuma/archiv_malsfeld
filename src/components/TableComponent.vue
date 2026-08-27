@@ -138,12 +138,16 @@
               </template>
               <template v-else>
                 <template v-if="isInlineEditable(field, item)">
-                  <div class="d-flex align-items-center">
-                    <input :ref="'input-' + item.id + '-' + field.name" v-model="item[field.name]"
+                  <div class="d-flex align-items-center w-100">
+                    <textarea v-if="field.type === 'textarea'" :ref="'input-' + item.id + '-' + field.name"
+                      v-model="item[field.name]" class="form-control form-control-sm auto-resize" rows="1" @click.stop
+                      @input="onEdit(item, field.name, $event.target.value)" @focus="resizeTextarea"></textarea>
+                    <input v-else :ref="'input-' + item.id + '-' + field.name" v-model="item[field.name]"
                       class="form-control form-control-sm" @click.stop
                       @input="onEdit(item, field.name, $event.target.value)">
                   </div>
                 </template>
+
                 <template v-else>
                   {{ item[field.name] }}
                 </template>
@@ -534,6 +538,11 @@ export default {
         this.$sendMsg(true, "Fehler beim Laden der PDF");
         console.error("Fehler beim Laden der PDF:", error);
       }
+    },
+    resizeTextarea(event) {
+      const textarea = event.target;
+      textarea.style.height = 'auto';
+      textarea.style.height = textarea.scrollHeight + 'px';
     },
     selectRow(row) {
       this.$emit("row-selected", row);

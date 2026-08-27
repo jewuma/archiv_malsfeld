@@ -1,6 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import ArchivEingang from '@/components/ArchivEingang.vue'
-import ArchivObjekt from '../components/ArchivObjekt.vue'
 import ArchivSuche from '@/components/ArchivSuche.vue'
 import HomeForm from '../components/HomeForm.vue'
 import QuellenMananger from '@/components/QuellenMananger.vue'
@@ -22,12 +21,6 @@ const router = createRouter({
       path: '/archivEingang',
       name: 'Archiveingang',
       component: ArchivEingang,
-      meta: { requiresAuth: true },
-    },
-    {
-      path: '/archivObjekt',
-      name: 'Archivobjekt',
-      component: ArchivObjekt,
       meta: { requiresAuth: true },
     },
     {

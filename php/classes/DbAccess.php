@@ -60,7 +60,7 @@ class DbAccess {
   protected function getTableName(): string {
     return "";
   }
-  private function normalizeKey(array|int $id): array {
+  private function normalizeKey(array|int|string $id): array {
     $keys = $this->getPrimaryKey();
 
     // Einfacher Fall: nur ein Key

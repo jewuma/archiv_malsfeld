@@ -1,7 +1,13 @@
 import { describe, expect, it, vi } from 'vitest'
-import ArchivEingang from '../ArchivEingang.vue'
+import ArchivEingang, { FilesSelected } from '../ArchivEingang.vue'
 
-function createVm({ archivOption, selectedFiles, saveOptions = {}, analogObjektAngelegt = false }) {
+function createVm({
+  archivOption,
+  filesSelected,
+  eingang,
+  digitalObjekt = {},
+  analogObjektAngelegt = false,
+}) {
   const postMock = vi.fn(async () => ({ data: {} }))
   const sendMsgMock = vi.fn()
   const refreshTreeMock = vi.fn()
@@ -9,61 +15,54 @@ function createVm({ archivOption, selectedFiles, saveOptions = {}, analogObjektA
 
   const vm = {
     nonPdfSelected: false,
-    eingang: [],
-    collectSelected: vi.fn(() => selectedFiles),
-    saveOptions: {
-      archivOption,
-      filePrefix: '',
-      newFilePrefix: false,
-      titles: [],
-      ...saveOptions,
-    },
+    filesSelected,
+    selectedFiles: {},
+    eingang,
     archivObjekt: {
-      id: 0,
-      ort_id: 4,
+      archivOption,
+      titel: 'Sammel Titel',
+      beschreibung: '',
+      status: 1,
       zeitraum_start: '',
       zeitraum_ende: '',
       start_ergaenzung: '',
       ende_ergaenzung: '',
-      themen_id: 2,
-      status: 1,
-      titel: 'Default Titel',
-      beschreibung: '',
-      dateiPfad: '',
-    },
-    analogObjektAngelegt,
-    analogObjekt: {
-      id: 123,
-      archiv_id: 'AN-0001',
-      objekttyp_id: 1,
-      gesperrt: false,
-      gesperrt_bis: '2050',
-      lagerort_id: 1,
-      regal_id: null,
-      fach_id: null,
-      platz_id: null,
-      digitalisiert: 2,
+      digitalObjekte: [],
+      analogObjekte: [],
     },
     digitalObjekt: {
-      pfad: '',
-      dateiname: '',
-      objekttyp_id: 1,
-      quellen_id: 0,
+      dateidatum: '2024',
+      quellen_id: 5,
+      gesperrt: false,
+      gesperrt_bis: null,
+      ...digitalObjekt,
+    },
+    analogObjekt: {
+      archiv_id: 'AN-0001',
       gesperrt: false,
       gesperrt_bis: '2050',
-      dateidatum: '2024',
     },
-    storeBasePath: 'Ort/',
-    selectedSpeicherpfad: 'Unterordner',
-    speicherpfad: 'Ort/Unterordner/2024_0101_Test_AN-0001.pdf',
+    analogObjektAngelegt,
+    collectSelected: ArchivEingang.methods.collectSelected,
     formatDokumentDatum: ArchivEingang.methods.formatDokumentDatum,
-    $axios: {
-      post: postMock,
-    },
+    $axios: { post: postMock },
     $sendMsg: sendMsgMock,
     refreshTree: refreshTreeMock,
     resetData: resetDataMock,
   }
+
+  // Markiert alle Dateien im eingang-Baum als ausgewählt.
+  const markSelected = (nodes) => {
+    for (const node of nodes) {
+      if (node.type === 'file') {
+        vm.selectedFiles[node.path] = true
+      }
+      if (node.children) {
+        markSelected(node.children)
+      }
+    }
+  }
+  markSelected(eingang)
 
   return { vm, postMock, sendMsgMock, refreshTreeMock, resetDataMock }
 }
@@ -72,89 +71,147 @@ function getCallsByUrl(postMock, url) {
   return postMock.mock.calls.filter((call) => call[0] === url)
 }
 
-describe('ArchivEingang save() Speicheroptionen', () => {
-  it('CombineFilesToOneArchivObjekt: speichert kombiniert und legt ein Digitalobjekt an', async () => {
+describe('ArchivEingang save()', () => {
+  it('CombineFiles: fasst mehrere ausgewählte Dateien zu einem Digitalobjekt zusammen', async () => {
     const { vm, postMock, sendMsgMock, refreshTreeMock, resetDataMock } = createVm({
-      archivOption: 'CombineFilesToOneArchivObjekt',
-      selectedFiles: ['eingang/a.pdf', 'eingang/b.pdf'],
+      archivOption: 'CombineFiles',
+      filesSelected: FilesSelected.Multiple,
+      eingang: [
+        {
+          type: 'directory',
+          children: [
+            { type: 'file', path: 'archiveingang/a.pdf', mimeType: 'application/pdf' },
+            { type: 'file', path: 'archiveingang/b.pdf', mimeType: 'application/pdf' },
+          ],
+        },
+      ],
     })
 
     await ArchivEingang.methods.save.call(vm)
 
-    const saveFilesCalls = getCallsByUrl(postMock, '/ArchivFiles/saveFiles')
-    expect(saveFilesCalls).toHaveLength(1)
-    expect(saveFilesCalls[0][1].combine).toBe(true)
+    expect(vm.archivObjekt.sourceFiles).toEqual(['archiveingang/a.pdf', 'archiveingang/b.pdf'])
+    expect(vm.archivObjekt.digitalObjekte).toEqual([
+      expect.objectContaining({
+        dateidatum: '2024-01-01',
+        titel: 'Sammel Titel',
+        quellen_id: 5,
+        sourcefilepath: '',
+      }),
+    ])
 
-    const createCalls = getCallsByUrl(postMock, '/Archiveingang/createOrUpdate')
-    expect(createCalls).toHaveLength(1)
-    expect(createCalls[0][1].digitalobjekte).toHaveLength(1)
-    expect(createCalls[0][1].digitalobjekte[0].dateiname).toBe('2024_0101_Test_AN-0001.pdf')
-
-    expect(getCallsByUrl(postMock, '/ArchivFiles/finalizeSavedFiles')).toHaveLength(1)
-    expect(getCallsByUrl(postMock, '/ArchivFiles/cleanupSavedFile')).toHaveLength(0)
-    expect(sendMsgMock).toHaveBeenCalledWith(false, 'Dateien gespeichert')
+    const saveCalls = getCallsByUrl(postMock, '/Archivobjekte/saveOrUpdate')
+    expect(saveCalls).toHaveLength(1)
+    expect(saveCalls[0][1].archivObjekt.analogObjekte).toBeUndefined()
+    expect(sendMsgMock).toHaveBeenCalledWith(false, 'Archivobjekt erfolgreich gespeichert.')
     expect(refreshTreeMock).toHaveBeenCalledOnce()
     expect(resetDataMock).toHaveBeenCalledOnce()
   })
 
-  it('newArchivObjectPerFile: legt pro Datei ein Archivobjekt an', async () => {
+  it('SingleFile: speichert eine einzelne ausgewählte Datei direkt', async () => {
     const { vm, postMock } = createVm({
-      archivOption: 'newArchivObjectPerFile',
-      selectedFiles: ['eingang/a.pdf', 'eingang/b.jpg'],
-      saveOptions: {
-        newFilePrefix: true,
-        filePrefix: 'PFX',
-      },
+      archivOption: 'CombineFiles',
+      filesSelected: FilesSelected.Single,
+      eingang: [{ type: 'file', path: 'archiveingang/einzel.pdf', mimeType: 'application/pdf' }],
     })
 
     await ArchivEingang.methods.save.call(vm)
 
-    const saveFilesCalls = getCallsByUrl(postMock, '/ArchivFiles/saveFiles')
-    expect(saveFilesCalls).toHaveLength(1)
-    expect(saveFilesCalls[0][1].combine).toBe(false)
-
-    const createCalls = getCallsByUrl(postMock, '/Archiveingang/createOrUpdate')
-    expect(createCalls).toHaveLength(2)
-    expect(createCalls[0][1].digitalobjekte[0].dateiname).toBe('PFX_00001.pdf')
-    expect(createCalls[1][1].digitalobjekte[0].dateiname).toBe('PFX_00002.jpg')
+    expect(vm.archivObjekt.archivOption).toBe('SingleFile')
+    expect(vm.archivObjekt.digitalObjekte).toEqual([
+      expect.objectContaining({ sourcefilepath: 'archiveingang/einzel.pdf' }),
+    ])
+    expect(getCallsByUrl(postMock, '/Archivobjekte/saveOrUpdate')).toHaveLength(1)
   })
 
-  it('selectTitlePerFile: verwendet Titel pro Datei', async () => {
-    const { vm, postMock } = createVm({
-      archivOption: 'selectTitlePerFile',
-      selectedFiles: ['eingang/a.pdf', 'eingang/b.pdf'],
-      saveOptions: {
-        titles: ['Titel A', 'Titel B'],
-      },
+  it('bricht ab, wenn nicht-PDF-Dateien zusammengefasst werden sollen', async () => {
+    const { vm, postMock, sendMsgMock } = createVm({
+      archivOption: 'CombineFiles',
+      filesSelected: FilesSelected.Multiple,
+      eingang: [
+        {
+          type: 'directory',
+          children: [
+            { type: 'file', path: 'archiveingang/a.pdf', mimeType: 'application/pdf' },
+            { type: 'file', path: 'archiveingang/b.jpg', mimeType: 'image/jpeg' },
+          ],
+        },
+      ],
     })
 
     await ArchivEingang.methods.save.call(vm)
 
-    const createCalls = getCallsByUrl(postMock, '/Archiveingang/createOrUpdate')
-    expect(createCalls).toHaveLength(2)
-    expect(createCalls[0][1].archivobjekt.titel).toBe('Titel A')
-    expect(createCalls[1][1].archivobjekt.titel).toBe('Titel B')
+    expect(sendMsgMock).toHaveBeenCalledWith(
+      true,
+      'Es können nur PDF-Dateien zusammengefasst werden.',
+    )
+    expect(getCallsByUrl(postMock, '/Archivobjekte/saveOrUpdate')).toHaveLength(0)
   })
 
-  it('saveAllFilesToOneArchivObject: speichert ein Archivobjekt mit mehreren Digitalobjekten', async () => {
+  it('übernimmt das angelegte Analogobjekt beim Speichern', async () => {
     const { vm, postMock } = createVm({
-      archivOption: 'saveAllFilesToOneArchivObject',
-      selectedFiles: ['eingang/a.pdf', 'eingang/b.png', 'eingang/c.tif'],
-      saveOptions: {
-        newFilePrefix: true,
-        filePrefix: 'SAMMEL',
-      },
+      archivOption: 'CombineFiles',
+      filesSelected: FilesSelected.Multiple,
+      eingang: [
+        {
+          type: 'directory',
+          children: [
+            { type: 'file', path: 'archiveingang/a.pdf', mimeType: 'application/pdf' },
+            { type: 'file', path: 'archiveingang/b.pdf', mimeType: 'application/pdf' },
+          ],
+        },
+      ],
       analogObjektAngelegt: true,
     })
 
     await ArchivEingang.methods.save.call(vm)
 
-    const createCalls = getCallsByUrl(postMock, '/Archiveingang/createOrUpdate')
-    expect(createCalls).toHaveLength(1)
-    expect(createCalls[0][1].digitalobjekte).toHaveLength(3)
-    expect(createCalls[0][1].digitalobjekte[0].dateiname).toBe('SAMMEL_00001.pdf')
-    expect(createCalls[0][1].digitalobjekte[1].dateiname).toBe('SAMMEL_00002.png')
-    expect(createCalls[0][1].digitalobjekte[2].dateiname).toBe('SAMMEL_00003.tif')
-    expect(createCalls[0][1].analogobjekte).toHaveLength(1)
+    const saveCalls = getCallsByUrl(postMock, '/Archivobjekte/saveOrUpdate')
+    expect(saveCalls[0][1].archivObjekt.analogObjekte).toEqual([
+      expect.objectContaining({ archiv_id: 'AN-0001', gesperrt_bis: null }),
+    ])
+  })
+
+  it('saveOptionsApplied: übernimmt Titel und Quellen pro Datei und speichert', async () => {
+    const { vm, postMock } = createVm({
+      archivOption: 'CombineFiles',
+      filesSelected: FilesSelected.Multiple,
+      eingang: [
+        {
+          type: 'directory',
+          children: [
+            { type: 'file', path: 'archiveingang/a.pdf', mimeType: 'application/pdf' },
+            { type: 'file', path: 'archiveingang/b.jpg', mimeType: 'image/jpeg' },
+          ],
+        },
+      ],
+    })
+    vm.filesToSave = ['archiveingang/a.pdf', 'archiveingang/b.jpg']
+    vm.save = ArchivEingang.methods.save
+
+    await ArchivEingang.methods.saveOptionsApplied.call(vm, {
+      titles: ['Titel A', 'Titel B'],
+      quellen_ids: [1, 2],
+      gesperrt: [false, true],
+      gesperrt_bis: [null, '2030'],
+      dateidaten: ['', ''],
+    })
+
+    expect(vm.archivObjekt.archivOption).toBe('MultipleFiles')
+    expect(vm.archivObjekt.digitalObjekte).toEqual([
+      expect.objectContaining({
+        titel: 'Titel A',
+        sourcefilepath: 'archiveingang/a.pdf',
+        quellen_id: 1,
+        gesperrt_bis: null,
+      }),
+      expect.objectContaining({
+        titel: 'Titel B',
+        sourcefilepath: 'archiveingang/b.jpg',
+        quellen_id: 2,
+        gesperrt_bis: '2030',
+      }),
+    ])
+    expect(vm.showOptionDialog).toBe(false)
+    expect(getCallsByUrl(postMock, '/Archivobjekte/saveOrUpdate')).toHaveLength(1)
   })
 })

@@ -28,12 +28,6 @@
             </router-link>
           </li>
           <li class="nav-item">
-            <router-link class="nav-link text-white fw-semibold" to="/archivObjekt">
-              <i class="bi bi-receipt me-2"></i>
-              Archivbearbeitung
-            </router-link>
-          </li>
-          <li class="nav-item">
             <router-link class="nav-link text-white fw-semibold" to="/archivSuche">
               <i class="bi bi-search me-2"></i>
               Archivsuche

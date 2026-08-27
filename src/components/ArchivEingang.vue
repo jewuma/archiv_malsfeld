@@ -534,6 +534,9 @@ export default {
           "/Archivobjekte/saveOrUpdate",
           { archivObjekt: this.archivObjekt }
         )
+        this.$sendMsg(false, "Archivobjekt erfolgreich gespeichert.")
+        this.resetData()
+        this.refreshTree()
       } catch (error) {
         this.$sendMsg(
           true,

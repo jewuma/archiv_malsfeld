@@ -113,7 +113,9 @@
       <AnalogTable v-if="item.analogobjekt_anzahl" :key="`analog-${item.id}-${item.analogReloadKey || 0}`" :item="item"
         :fixedData="analogFixedData" @add-analogobjekt="(row) => addAnalogobjekt(item, row)"
         @delete-analogobjekt="(row) => deleteAnalogobjekt(item, row)" />
-      <DigitalobjektTable v-if="item.datei_anzahl" :item="item" :fixed-data="digitalFixedData" />
+      <DigitalobjektTable v-if="item.datei_anzahl" :key="`digital-${item.id}-${item.digitalReloadKey || 0}`"
+        :item="item" :fixed-data="digitalFixedData" @add-digitalobjekt="(row) => addDigitalobjekt(item, row)"
+        @delete-digitalobjekt="(row) => deleteDigitalobjekt(item, row)" />
     </template>
   </CardComponent>
   <MessageDialog v-if="showAddAnalogDialog" title="Analogobjekt anlegen" confirm-text="Speichern"
@@ -124,6 +126,11 @@
   <MessageDialog v-if="showDeleteAnalogDialog" title="Analogobjekt löschen" confirm-text="Löschen"
     cancel-text="Abbrechen" :message="deleteAnalogDialogMessage" @confirm="confirmDeleteAnalogobjekt"
     @cancel="closeDeleteAnalogDialog" />
+  <AddDigitalDialog v-if="showAddDigitalDialog" :tree="addDigitalDialogTree" :quellen="digitalFixedData.quellen"
+    :row="addDigitalDialogRow" @confirm="saveAddDigitalobjekt" @cancel="closeAddDigitalDialog" />
+  <MessageDialog v-if="showDeleteDigitalDialog" title="Digitalobjekt löschen" confirm-text="Löschen"
+    cancel-text="Abbrechen" :message="deleteDigitalDialogMessage" @confirm="confirmDeleteDigitalobjekt"
+    @cancel="closeDeleteDigitalDialog" />
 </template>
 <script>
 import CardComponent from './CardComponent.vue';
@@ -131,14 +138,16 @@ import SchlagwortSelektor from './SchlagwortSelektor.vue';
 import DigitalobjektTable from './DigitalobjektTable.vue';
 import AnalogTable from './AnalogTable.vue';
 import MessageDialog from './MessageDialog.vue';
+import AddDigitalDialog from './AddDigitalDialog.vue';
 
 export default {
   components: {
+    AddDigitalDialog,
     AnalogTable,
     CardComponent,
     DigitalobjektTable,
     MessageDialog,
-    SchlagwortSelektor
+    SchlagwortSelektor,
   },
   data() {
     return {
@@ -148,7 +157,7 @@ export default {
           { name: 'ort_id', label: 'Ort', type: 'select', 'width': '140px', inlineEdit: true, options: [] },
           { name: 'themen_id', label: 'Thema', type: 'select', width: '150px', inlineEdit: true, options: [] },
           { name: 'titel', label: 'Titel', type: 'text', 'width': '350px', inlineEdit: true },
-          { name: 'beschreibung', label: 'Beschreibung', type: 'text', inlineEdit: true },
+          { name: 'beschreibung', label: 'Beschreibung', type: 'textarea', inlineEdit: true },
           { name: 'zeitraum_start', label: 'Zeitraum Start', type: 'text', 'width': '120px', inlineEdit: true },
           { name: 'zeitraum_ende', label: 'Zeitraum Ende', type: 'text', 'width': '120px', inlineEdit: true },
           { name: 'analogobjekt', label: 'Analog', type: 'analogobjekt', 'width': '70px' },
@@ -206,6 +215,13 @@ export default {
       showDeleteAnalogDialog: false,
       deleteAnalogDialogParent: null,
       deleteAnalogDialogRow: null,
+      showAddDigitalDialog: false,
+      addDigitalDialogParent: null,
+      addDigitalDialogRow: null,
+      addDigitalDialogTree: [],
+      showDeleteDigitalDialog: false,
+      deleteDigitalDialogParent: null,
+      deleteDigitalDialogRow: null,
     };
   },
   computed: {
@@ -215,6 +231,13 @@ export default {
         return 'Dieses Analogobjekt wirklich löschen?';
       }
       return `Analogobjekt ${archivId} wirklich löschen?`;
+    },
+    deleteDigitalDialogMessage() {
+      const title = this.deleteDigitalDialogRow?.titel ?? '';
+      if (!title) {
+        return 'Dieses Digitalobjekt wirklich löschen?';
+      }
+      return `Digitalobjekt "${title}" wirklich löschen?`;
     },
   },
   async mounted() {
@@ -277,6 +300,85 @@ export default {
     },
     addFiles(id) {
       console.log("addFiles", id);
+    },
+    async addDigitalobjekt(parentItem, sourceRow) {
+      this.addDigitalDialogParent = parentItem;
+      this.addDigitalDialogRow = sourceRow;
+      const response = await this.$axios.post('/ArchivFiles/getTree', {
+        directory: 'archiveingang',
+        withFiles: true,
+      });
+      this.addDigitalDialogTree = response.data.data;
+      this.showAddDigitalDialog = true;
+    },
+    closeAddDigitalDialog() {
+      this.showAddDigitalDialog = false;
+      this.addDigitalDialogParent = null;
+      this.addDigitalDialogRow = null;
+      this.addDigitalDialogTree = [];
+    },
+    async saveAddDigitalobjekt(payload) {
+      if (!this.addDigitalDialogParent || !payload?.file) {
+        this.$sendMsg(true, 'Bitte wählen Sie eine Datei aus.');
+        return;
+      }
+
+      await this.$axios.post('/Digitalobjekte/save', {
+        archivobjekt_id: this.addDigitalDialogParent.id,
+        titel: payload.titel || '',
+        quellen_id: payload.quellen_id || null,
+        gesperrt: payload.gesperrt || false,
+        gesperrt_bis: payload.gesperrt_bis || null,
+        dateidatum: payload.dateidatum || '',
+        sourcefilepath: payload.file,
+      });
+
+      this.updateDigitalCount(this.addDigitalDialogParent.id, 1);
+      this.$sendMsg(false, 'Digitalobjekt wurde angelegt.');
+      this.closeAddDigitalDialog();
+    },
+    deleteDigitalobjekt(parentItem, row) {
+      this.deleteDigitalDialogParent = parentItem;
+      this.deleteDigitalDialogRow = row;
+      this.showDeleteDigitalDialog = true;
+    },
+    closeDeleteDigitalDialog() {
+      this.showDeleteDigitalDialog = false;
+      this.deleteDigitalDialogParent = null;
+      this.deleteDigitalDialogRow = null;
+    },
+    async confirmDeleteDigitalobjekt() {
+      if (!this.deleteDigitalDialogRow?.id || !this.deleteDigitalDialogParent?.id) {
+        this.closeDeleteDigitalDialog();
+        return;
+      }
+
+      await this.$axios.get(`/Digitalobjekte/delete/${this.deleteDigitalDialogRow.id}`);
+      this.updateDigitalCount(this.deleteDigitalDialogParent.id, -1);
+      this.$sendMsg(false, 'Digitalobjekt wurde gelöscht.');
+      this.closeDeleteDigitalDialog();
+    },
+    updateDigitalCount(parentId, change) {
+      const parentIndex = this.tableData.findIndex(row => row.id === parentId);
+      if (parentIndex < 0) {
+        return;
+      }
+
+      const parentRow = { ...this.tableData[parentIndex] };
+      const nextCount = Math.max(0, Number(parentRow.datei_anzahl || 0) + change);
+      parentRow.datei_anzahl = nextCount;
+      parentRow.archivdatei = {
+        ...(parentRow.archivdatei || {}),
+        id: parentRow.id,
+        count: nextCount,
+      };
+      parentRow.hasDetails = nextCount > 0 || Number(parentRow.analogobjekt_anzahl || 0) > 0;
+      parentRow.digitalReloadKey = (parentRow.digitalReloadKey || 0) + 1;
+      if (nextCount === 0) {
+        parentRow.expanded = false;
+      }
+      this.tableData.splice(parentIndex, 1, parentRow);
+      this.tableData = [...this.tableData];
     },
     closeAddAnalogDialog() {
       this.showAddAnalogDialog = false;
