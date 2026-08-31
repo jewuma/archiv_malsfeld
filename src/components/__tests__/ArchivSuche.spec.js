@@ -91,6 +91,26 @@ describe('ArchivSuche', () => {
     expect(vm.showDeleteDigitalDialog).toBe(false)
   })
 
+  it('verschiebt die Datei beim Löschen in den Archiveingang', async () => {
+    const getMock = vi.fn().mockResolvedValue({ data: {} })
+    const vm = {
+      $axios: { get: getMock },
+      $sendMsg: vi.fn(),
+      deleteDigitalAction: 'moveToInbox',
+      deleteDigitalDialogParent: { id: 7 },
+      deleteDigitalDialogRow: { id: 3, titel: 'Datei' },
+      tableData: [{ id: 7, datei_anzahl: 1, analogobjekt_anzahl: 0, expanded: true }],
+      updateDigitalCount: ArchivSuche.methods.updateDigitalCount,
+      closeDeleteDigitalDialog: ArchivSuche.methods.closeDeleteDigitalDialog,
+      showDeleteDigitalDialog: true,
+    }
+
+    await ArchivSuche.methods.confirmDeleteDigitalobjekt.call(vm)
+
+    expect(getMock).toHaveBeenCalledWith('/Digitalobjekte/deleteToInbox/3')
+    expect(vm.tableData[0].datei_anzahl).toBe(0)
+  })
+
   it('behaelt bearbeitete Werte nach dem Auf- und Zuklappen', async () => {
     const postMock = vi.fn().mockResolvedValue({ data: {} })
     const vm = {

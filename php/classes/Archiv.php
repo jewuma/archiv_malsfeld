@@ -91,7 +91,7 @@ class Archiv {
       "startJahr" => "integer,optional",
       "endJahr" => "integer,optional",
       "suchbegriff" => "string,optional",
-      "beschreibung" => "string,optional",
+      "archiviert_geaendert" => "string,optional",
       "archivstatus" => "integer,optional",
       "objekttyp_id" => "integer,optional",
       "analog_archiv_id" => "integer,optional",
@@ -107,13 +107,16 @@ class Archiv {
     }
     $ortWhere = isset($param["ort_id"]) ? "AND ao.ort_id = " . $param["ort_id"] : "";
     $suchbegriff = isset($param["suchbegriff"]) && !empty($param["suchbegriff"]) ? "%" . $param["suchbegriff"] . "%" : null;
-    $beschreibungWhere = "";
-    if (isset($param["beschreibung"])) {
-      if ($param["beschreibung"] === "ja") {
-        $beschreibungWhere = "AND TRIM(COALESCE(ao.beschreibung, '')) <> ''";
+    $archiviertGeaendertWhere = "";
+    if (isset($param["archiviert_geaendert"])) {
+      if ($param["archiviert_geaendert"] === "last_week") {
+        $archiviertGeaendertWhere = "AND (ao.archivdatum >= DATE_SUB(CURDATE(), INTERVAL 1 WEEK) OR ao.aenderungsdatum >= DATE_SUB(CURDATE(), INTERVAL 1 WEEK)) ";
       }
-      if ($param["beschreibung"] === "nein") {
-        $beschreibungWhere = "AND TRIM(COALESCE(ao.beschreibung, '')) = ''";
+      if ($param["archiviert_geaendert"] === "last_month") {
+        $archiviertGeaendertWhere = "AND (ao.archivdatum >= DATE_SUB(CURDATE(), INTERVAL 1 MONTH) OR ao.aenderungsdatum >= DATE_SUB(CURDATE(), INTERVAL 1 MONTH)) ";
+      }
+      if ($param["archiviert_geaendert"] === "last_year") {
+        $archiviertGeaendertWhere = "AND (ao.archivdatum >= DATE_SUB(CURDATE(), INTERVAL 1 YEAR) OR ao.aenderungsdatum >= DATE_SUB(CURDATE(), INTERVAL 1 YEAR)) ";
       }
     }
     $statusWhere = isset($param["archivstatus"]) ? "AND ao.status = " . $param["archivstatus"] : "";
@@ -148,99 +151,65 @@ class Archiv {
       )"
       : "";
     $sql = "SELECT
-    ao.id,
-    ao.titel,
-    ao.beschreibung,
-    th.id AS themen_id,
-    o.id AS ort_id,
-    ao.zeitraum_start,
-    ao.zeitraum_ende,
-    COALESCE(an.anzahl, 0) AS analogobjekt_anzahl,
-    an.erste_id AS erste_analogobjekt_id,
-    an1.objekttyp_id AS erste_analogobjekt_typ_id,
-    COALESCE(df.anzahl, 0) AS datei_anzahl,
-    df.erste_id AS erste_datei_id,
-    df.erster_typ AS erste_datei_typ
-    FROM archivobjekte ao
-    LEFT JOIN orte o ON o.id = ao.ort_id
-    LEFT JOIN themen th ON th.id = ao.themen_id
-    LEFT JOIN (
-    SELECT archivobjekt_id, COUNT(*) AS anzahl, MIN(id) AS erste_id
-      FROM analogobjekte
-      GROUP BY archivobjekt_id
-    ) an ON an.archivobjekt_id = ao.id
-    LEFT JOIN analogobjekte an1
-    ON an1.id = an.erste_id
-LEFT JOIN (
-  SELECT
-      archivobjekt_id,
-      COUNT(*) AS anzahl,
-      MIN(id) AS erste_id,
-      LOWER(
-          SUBSTRING_INDEX(
-              GROUP_CONCAT(dateiendung ORDER BY id),
-              ',',
-              1
-          )
-      ) AS erster_typ
-  FROM digitalobjekte
-  GROUP BY archivobjekt_id
-) df ON df.archivobjekt_id = ao.id
-    WHERE 1 
-    $schlagwortWhere 
-    $ortWhere
-    $beschreibungWhere
-    $statusWhere
-    $objekttypWhere
-    $analogArchivIdWhere
-    $digitalisiertOhneDateiWhere
-    AND (:startJahr IS NULL OR ao.zeitraum_start >= :startJahr)
-    AND (:endJahr IS NULL OR ao.zeitraum_ende <= :endJahr)
-    AND (:suchbegriff IS NULL
-        OR th.name LIKE CONCAT('%', :suchbegriff, '%')
-        OR ao.titel LIKE CONCAT('%', :suchbegriff, '%')
-        OR ao.beschreibung LIKE CONCAT('%', :suchbegriff, '%')
-    )
-     LIMIT 500";
+        ao.id,
+        ao.titel,
+        ao.beschreibung,
+        th.id AS themen_id,
+        o.id AS ort_id,
+        ao.zeitraum_start,
+        ao.zeitraum_ende,
+        COALESCE(an.anzahl, 0) AS analogobjekt_anzahl,
+        an.erste_id AS erste_analogobjekt_id,
+        an1.objekttyp_id AS erste_analogobjekt_typ_id,
+        COALESCE(df.anzahl, 0) AS datei_anzahl,
+        df.erste_id AS erste_datei_id,
+        df.erster_typ AS erste_datei_typ
+        FROM archivobjekte ao
+        LEFT JOIN orte o ON o.id = ao.ort_id
+        LEFT JOIN themen th ON th.id = ao.themen_id
+        LEFT JOIN (
+        SELECT archivobjekt_id, COUNT(*) AS anzahl, MIN(id) AS erste_id
+          FROM analogobjekte
+          GROUP BY archivobjekt_id
+        ) an ON an.archivobjekt_id = ao.id
+        LEFT JOIN analogobjekte an1
+        ON an1.id = an.erste_id
+        LEFT JOIN (
+          SELECT
+              archivobjekt_id,
+              COUNT(*) AS anzahl,
+              MIN(id) AS erste_id,
+              LOWER(
+                  SUBSTRING_INDEX(
+                      GROUP_CONCAT(dateiendung ORDER BY id),
+                      ',',
+                      1
+                  )
+              ) AS erster_typ
+          FROM digitalobjekte
+          GROUP BY archivobjekt_id
+        ) df ON df.archivobjekt_id = ao.id
+            WHERE 1 
+            $schlagwortWhere 
+            $ortWhere
+            $archiviertGeaendertWhere
+            $statusWhere
+            $objekttypWhere
+            $analogArchivIdWhere
+            $digitalisiertOhneDateiWhere
+            AND (:startJahr IS NULL OR ao.zeitraum_start >= :startJahr)
+            AND (:endJahr IS NULL OR ao.zeitraum_ende <= :endJahr)
+            AND (:suchbegriff IS NULL
+                OR th.name LIKE CONCAT('%', :suchbegriff, '%')
+                OR ao.titel LIKE CONCAT('%', :suchbegriff, '%')
+                OR ao.beschreibung LIKE CONCAT('%', :suchbegriff, '%')
+            )
+        LIMIT 500";
     $paramArray = [
       ":startJahr" => $param["startJahr"] ?? null,
       ":endJahr" => $param["endJahr"] ?? null,
       ":suchbegriff" => $suchbegriff
     ];
     return Archivdb::preparedWebQuery($sql, $paramArray);
-  }
-  public function create(string $parameter): JsonResponse {
-    $param = Validator::validateJsonAgainstSchema(
-      $parameter,
-      [
-        "abJahr" => "integer,emptyOK",
-        "bisJahr" => "integer,emptyOK",
-        "analogNummer" => "integer,emptyOK",
-        "dokumentDatum" => "date,emptyOK",
-        "gesperrt" => "boolean",
-        "kurztitel" => "string",
-        "ort_id" => "integer",
-        "dateiPfad" => "string",
-      ]
-    );
-    $sql = "INSERT INTO archivobjekte (ort_id,zeitraum_start, zeitraum_ende, titel, `status`, archivdatum)
-      VALUES (:ort_id, :abJahr, :bisJahr, :kurztitel, 1, NOW())";
-    $this->db->beginTransaction();
-    $this->db->prepare($sql)->execute([
-      ":ort_id" => $param["ort_id"],
-      ":abJahr" => $param["abJahr"] ?? null,
-      ":bisJahr" => $param["bisJahr"] ?? null,
-      ":kurztitel" => $param["kurztitel"],
-    ]);
-    $archivObjektId = (int) $this->db->lastInsertId();
-    $analogSql = "INSERT INTO analogobjekte (archivobjekt_id, archiv_id, dokumentendatum, digitalisiert, archivdatum)
-      VALUES (:archivobjekt_id, :analogNummer, :dokumentDatum, 0, NOW())";
-    $this->db->prepare($analogSql)->execute([
-      ":archivobjekt_id" => $archivObjektId,
-      ":analogNummer" => $param["analogNummer"] ?? null,
-      ":dokumentDatum" => $param["dokumentDatum"] ?? null,
-    ]);
-    $this->db->commit();
-    return new JsonResponse(200, $param);
   }
 }

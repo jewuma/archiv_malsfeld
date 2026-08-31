@@ -1,8 +1,8 @@
 <template>
   <CardComponent title="Archiveingang bearbeiten" :fields="[]" :table-data="[]">
-    <div class="row">
+    <div class="row g-0 content-row">
       <!-- Eingangsdateien -->
-      <div class="col-lg-6 mb-3">
+      <div class="col-lg-6 inner-col">
         <div class="card h-100">
           <div class="card-header">
             <h5 class="mb-0">Posteingang</h5>
@@ -14,8 +14,8 @@
         </div>
       </div>
       <!-- Archivinformationen -->
-      <div class="col-lg-6">
-        <div class="card">
+      <div class="col-lg-6 inner-col">
+        <div class="card h-100">
           <div class="card-header">
             <h5 class="mb-0">Archivinformationen</h5>
           </div>
@@ -198,7 +198,7 @@ export default {
         archiv_id: "",
         objekttyp_id: 1,
         seiten: null,
-        quellen_id: 0,
+        quellen_id: null,
         gesperrt: false,
         gesperrt_bis: (parseInt(new Date().toISOString().substring(0, 4)) + 25).toString(),
         lagerort_id: 1,
@@ -209,7 +209,7 @@ export default {
       },
       digitalObjekt: {
         sourcefilepath: "",
-        quellen_id: 0,
+        quellen_id: null,
         gesperrt: false,
         gesperrt_bis: (parseInt(new Date().toISOString().substring(0, 4)) + 25).toString(),
         dateidatum: "",
@@ -242,6 +242,8 @@ export default {
     optionsDisabledReason() {
       if (this.filesSelected !== FilesSelected.Multiple)
         return "Es müssen mindestens zwei Dateien ausgewählt werden, um die Speicheroptionen zu ändern.";
+      if (this.archivObjekt.titel.trim() === "")
+        return "Es muss ein Titel angegeben werden, um die Dateien einzeln zu speichern.";
       return "";
     },
     saveDisabledReason() {
@@ -309,7 +311,7 @@ export default {
           this.analogObjektAngelegt = false
           this.analogObjekt.objekttyp_id = 1
           this.analogObjekt.seiten = null
-          this.analogObjekt.quellen_id = 0
+          this.analogObjekt.quellen_id = null
           this.analogObjekt.gesperrt = false
           this.analogObjekt.gesperrt_bis = (parseInt(new Date().toISOString().substring(0, 4)) + 25).toString(),
             this.analogObjekt.lagerort_id = 1
@@ -347,7 +349,10 @@ export default {
       this.archivObjekt.archivOption = ""
       this.archivObjekt.analogObjekte = [this.analogObjekt]
       delete this.archivObjekt.digitalObjekte
-      await this.$axios.post("/Archivobjekte/saveOrUpdate", { archivObjekt: this.archivObjekt })
+      const response = await this.$axios.post("/Archivobjekte/saveOrUpdate", { archivObjekt: this.archivObjekt })
+      const savedArchivObjekt = response.data.data.archivObjekt
+      this.archivObjekt.id = savedArchivObjekt.id
+      this.analogObjekt.id = savedArchivObjekt.analogObjekte[0].id
       this.analogObjektAngelegt = true
       this.showAnalogObjektAnlegen = false
     },
@@ -401,11 +406,11 @@ export default {
       else if (value.length === 6) {
         // MMYYYY -> MM.YYYY
         this.digitalObjekt.dateidatum =
-          `${value.slice(0, 2)}.${value.slice(2)}`;
+          `01.${value.slice(0, 2)}.${value.slice(2)}`;
       }
       else if (value.length === 4) {
         // YYYY
-        this.digitalObjekt.dateidatum = value;
+        this.digitalObjekt.dateidatum = `01.01.${value}`;
       }
     },
     makeFilename(text) {
@@ -472,7 +477,7 @@ export default {
 
       const dateidatum = formattedDate
         ? formattedDate.replace(/^(\d{4})_(\d{2})(\d{2})$/, "$1-$2-$3")
-        : ""
+        : null
       const status =
         this.archivObjekt.status > 2 ? this.archivObjekt.status :
           (this.archivObjekt.beschreibung.trim() === "" ? 1 : 2)
@@ -552,16 +557,15 @@ export default {
     async saveOptionsApplied(options) {
       this.showOptionDialog = false
       this.archivObjekt.archivOption = "MultipleFiles"
-
       this.archivObjekt.digitalObjekte = options.titles.map((title, index) => ({
         titel: title,
         sourcefilepath: this.filesToSave[index],
-        quellen_id: options.quellen_ids[index] ?? 0,
+        quellen_id: options.quellen_ids[index] ?? null,
         gesperrt: options.gesperrt[index] ?? false,
         gesperrt_bis: options.gesperrt[index]
           ? options.gesperrt_bis[index]
           : null,
-        dateidatum: options.dateidaten[index] ?? "",
+        dateidatum: options.dateidaten[index] ?? null,
       }))
 
       await this.save()
@@ -671,7 +675,18 @@ export default {
   // }
 };
 </script>
+
 <style scoped>
+.content-row {
+  flex: 1;
+  min-height: 0;
+}
+
+.inner-col {
+  padding: 5px 10px 10px 10px;
+  box-sizing: border-box;
+}
+
 .file-select-color {
   background-color: azure;
 }

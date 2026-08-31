@@ -114,11 +114,11 @@ class ArchivFiles {
         $file = $this->get($id);
         $path = $file->filePathForStreaming;
         $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
-        if ($extension === 'pdf') {
-            return $file;
+        if (in_array($extension, ['tif', 'tiff'], true)) {
+            $file->filePathForStreaming = substr($file->filePathForStreaming, strlen(self::$baseDir));
+            return $this->getPreviewByPath(json_encode(["path" => $file->filePathForStreaming, "fromInbox" => false]));
         }
-        $file->filePathForStreaming = substr($file->filePathForStreaming, strlen(self::$baseDir));
-        return $this->getPreviewByPath(json_encode(["path" => $file->filePathForStreaming, "fromInbox" => false]));
+        return $file;
     }
     public function getPreviewByPath(string $parameters): FileResponse {
         $file = $this->getByPath($parameters);

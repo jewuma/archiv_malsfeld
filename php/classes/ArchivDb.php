@@ -35,17 +35,21 @@ class ArchivDb {
     // Erlaubte Spalten und ihre Typen speichern
     $allowedColumns = [];
     $primary = [];
+    $nullOK = [];
     foreach ($tableColumns as $column) {
       $allowedColumns[$column["Field"]] = $column["Type"];
       if ($column["Key"] === "PRI") {
         $primary[$column["Field"]] = $column["Type"];
+      }
+      if ($column["Null"] === "YES") {
+        $nullOK[$column["Field"]] = true;
       }
       if (str_contains($column["Extra"], "auto_increment")) {
         $autoIncrement = $column["Field"];
       }
     }
 
-    return ["allowed" => $allowedColumns, "primary" => $primary, "auto_increment" => $autoIncrement];
+    return ["allowed" => $allowedColumns, "primary" => $primary, "auto_increment" => $autoIncrement, "nullOK" => $nullOK];
   }
   public static function webQuery(string $sql): JsonResponse {
     try {
@@ -186,6 +190,7 @@ class ArchivDb {
     // 1. Metadaten holen
     $info = self::getAllowedColumns($table);
     $allowedColumns = $info["allowed"];
+    $nullOK = $info["nullOK"];
     $dateColumn = $isUpdate ? "aenderungsdatum" : "archivdatum";
     $userColumn = $isUpdate ? "geaendert_durch" : "archiviert_durch";
     if (array_key_exists($dateColumn, $allowedColumns)) {
@@ -204,6 +209,10 @@ class ArchivDb {
     $filteredData = [];
     foreach ($data as $column => $value) {
       if (array_key_exists($column, $allowedColumns)) {
+        if ($value === null && isset($nullOK[$column])) {
+          $filteredData[$column] = null;
+          continue;
+        }
         $filteredData[$column] = self::transformData($value, $allowedColumns[$column]);
       }
     }

@@ -8,7 +8,7 @@
             <h5 class="mb-0">Posteingang</h5>
           </div>
           <div class="card-body file-select-color">
-            <TreeView :tree="tree" title="" selectable @file-selected="selectFile" />
+            <TreeView :tree="tree" title="" selectable @file-selected="selectFile" @refresh-tree="refreshTree" />
           </div>
         </div>
       </div>
@@ -104,6 +104,9 @@ export default {
   methods: {
     selectFile(path, isSelected) {
       this.selectedFile = isSelected ? path : null;
+    },
+    refreshTree() {
+      this.$emit('refresh-tree');
     },
     onConfirm() {
       this.$emit('confirm', {

@@ -21,19 +21,62 @@ class Digitalobjekte extends DbAccess {
       throw new \Exception("Digitalobjekt-Id fehlt", 400);
     }
 
-    $stmt = $this->db->prepare("SELECT dateiendung FROM digitalobjekte WHERE id = :id");
+    $stmt = $this->db->prepare("SELECT dateiendung, archivobjekt_id FROM digitalobjekte WHERE id = :id");
     $stmt->execute([':id' => $id]);
     $digitalobjekt = $stmt->fetch();
     if (!$digitalobjekt) {
       throw new \Exception("Datensatz in digitalobjekte nicht gefunden.", 404);
     }
+    $archivobjektId = (int)$digitalobjekt['archivobjekt_id'];
 
     $path = ArchivFiles::$baseDir . substr((string)$id, 0, 4) . "/" . $id . "." . $digitalobjekt['dateiendung'];
     if (is_file($path) && !unlink($path)) {
       throw new \Exception("Die Archivdatei konnte nicht gelöscht werden", 500);
     }
 
-    return parent::delete($primaryKey);
+    $response = parent::delete($primaryKey);
+    $orphanedResponse = Archivobjekte::deleteIfOrphaned($archivobjektId);
+    $response->data = is_array($response->data) ? $response->data : [];
+    $response->data["archivobjektDeleted"] = $orphanedResponse->data;
+    return $response;
+  }
+  public function deleteToInbox(string|array $primaryKey): JsonResponse {
+    $id = is_array($primaryKey) ? (int)($primaryKey['id'] ?? 0) : (int)$primaryKey;
+    if (!$id) {
+      throw new \Exception("Digitalobjekt-Id fehlt", 400);
+    }
+
+    $stmt = $this->db->prepare("SELECT dateiendung,archivobjekt_id FROM digitalobjekte WHERE id = :id");
+    $stmt->execute([':id' => $id]);
+    $digitalobjekt = $stmt->fetch();
+    if (!$digitalobjekt) {
+      throw new \Exception("Datensatz in digitalobjekte nicht gefunden.", 404);
+    }
+
+    $extension = strtolower($digitalobjekt['dateiendung']);
+    $archivobjektId = (int)$digitalobjekt['archivobjekt_id'];
+    $sourcePath = ArchivFiles::$baseDir . substr((string)$id, 0, 4) . "/" . $id . "." . $extension;
+    if (!is_file($sourcePath)) {
+      throw new \Exception("Die Archivdatei konnte nicht gefunden werden", 404);
+    }
+    $targetPath = ArchivFiles::$inboxDir . $id . "." . $extension;
+    if (file_exists($targetPath)) {
+      throw new \Exception("Eine Datei mit diesem Namen liegt bereits im Archiveingang", 409);
+    }
+
+    if (!rename($sourcePath, $targetPath)) {
+      throw new \Exception("Die Datei konnte nicht in den Archiveingang verschoben werden", 500);
+    }
+    try {
+      $response = parent::delete($primaryKey);
+      $orphanedResponse = Archivobjekte::deleteIfOrphaned($archivobjektId);
+      $response->data = is_array($response->data) ? $response->data : [];
+      $response->data["archivobjektDeleted"] = $orphanedResponse->data;
+      return $response;
+    } catch (\Exception $e) {
+      rename($targetPath, $sourcePath);
+      throw $e;
+    }
   }
   public function save(string|array $dataset, bool $isUpdate = false): JsonResponse {
     $useTransaction = true;
@@ -77,20 +120,16 @@ class Digitalobjekte extends DbAccess {
     if ($useTransaction) {
       $this->db->beginTransaction();
     }
-    $dateidatum = null;
-
-    if (!empty($d["dateidatum"])) {
-      $date = \DateTime::createFromFormat('Y-m-d', $d["dateidatum"]);
-
-      if (
-        $date !== false &&
-        $date->format('Y-m-d') === $d["dateidatum"]
-      ) {
-        $dateidatum = $d["dateidatum"];
-      }
-    }
     try {
       if (isset($d["id"])) {
+        // Bei Teil-Updates (z.B. nur sourcefilepath) fehlende Felder aus dem bestehenden Datensatz ergänzen
+        $existingStmt = $this->db->prepare("SELECT archivobjekt_id, titel, quellen_id, gesperrt, gesperrt_bis, dateidatum FROM digitalobjekte WHERE id = :id");
+        $existingStmt->execute(['id' => $d["id"]]);
+        $existing = $existingStmt->fetch();
+        if (!$existing) {
+          throw new \Exception("Datensatz in digitalobjekte nicht gefunden.", 404);
+        }
+        $d = array_merge($existing, $d);
         $stmt = $this->db->prepare("UPDATE digitalobjekte SET 
         archivobjekt_id = :archivobjekt_id, titel = :titel, dateiendung = :dateiendung, 
         quellen_id = :quellen_id, gesperrt = :gesperrt, gesperrt_bis = :gesperrt_bis, 
@@ -104,7 +143,7 @@ class Digitalobjekte extends DbAccess {
           'quellen_id' => $d["quellen_id"] ?? null,
           'gesperrt' => $d["gesperrt"] ? 1 : 0,
           'gesperrt_bis' => $d["gesperrt_bis"] ?? null,
-          'dateidatum' => $dateidatum,
+          'dateidatum' => self::normalizeDateidatum($d["dateidatum"] ?? null),
           'aenderungsdatum' => date('Y-m-d H:i:s'),
           'geaendert_durch' => AppContext::getUsername()
 
@@ -119,7 +158,7 @@ class Digitalobjekte extends DbAccess {
           'quellen_id' => $d["quellen_id"] ?? null,
           'gesperrt' => $d["gesperrt"] ? 1 : 0,
           'gesperrt_bis' => $d["gesperrt_bis"] ?? null,
-          'dateidatum' => $dateidatum,
+          'dateidatum' => self::normalizeDateidatum($d["dateidatum"] ?? null),
           'archivdatum' => date('Y-m-d H:i:s'),
           'archiviert_durch' => AppContext::getUsername()
         ]);
@@ -142,5 +181,15 @@ class Digitalobjekte extends DbAccess {
       }
       throw $e;
     }
+  }
+  private static function normalizeDateidatum(?string $value): ?string {
+    if (empty($value)) {
+      return null;
+    }
+    $date = \DateTime::createFromFormat('Y-m-d', $value);
+    if ($date !== false && $date->format('Y-m-d') === $value) {
+      return $value;
+    }
+    return null;
   }
 }

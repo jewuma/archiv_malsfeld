@@ -9,6 +9,28 @@ class Analogobjekte extends DbAccess {
   public function getTableName(): string {
     return "analogobjekte";
   }
+  public function delete(string|array $id): JsonResponse {
+    if (!is_string($id)) {
+      throw new \InvalidArgumentException("Ungültige Archiv-ID.");
+    }
+    $id = (int)$id;
+    $archivobjektQuery = $this->db->prepare("SELECT archivobjekt_id FROM analogobjekte WHERE id=?");
+    $archivobjektQuery->execute([$id]);
+    $archivobjekt = $archivobjektQuery->fetch();
+    if (!$archivobjekt) {
+      throw new \Exception("Datensatz in analogobjekte nicht gefunden.", 404);
+    }
+    $archivobjektId = (int)$archivobjekt['archivobjekt_id'];
+
+    $stmt = $this->db->prepare("DELETE FROM analogobjekte WHERE id=?");
+    $stmt->execute([$id]);
+    $orphanedResponse = Archivobjekte::deleteIfOrphaned($archivobjektId);
+
+    return JsonResponse::success([
+      "deleted" => $stmt->rowCount() > 0,
+      "archivobjektDeleted" => $orphanedResponse->data,
+    ]);
+  }
   public function exists(int|string $archivId): JsonResponse {
     $archivId = (int) $archivId;
     $stmt = $this->db->prepare("SELECT COUNT(*) as count FROM analogobjekte WHERE archiv_id=?");

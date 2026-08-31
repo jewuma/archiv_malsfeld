@@ -113,7 +113,8 @@
               Abbrechen
             </button>
 
-            <button class="btn btn-primary" @click="apply">
+            <button class="btn btn-primary" @click="apply" :disabled="!saveEnabled"
+              :title="!saveEnabled ? 'Es müssen alle Titel ausgefüllt sein' : ''">
               Übernehmen und Speichern
             </button>
           </div>
@@ -143,7 +144,6 @@ export default {
       default: () => ({})
     }
   },
-
   data() {
     return {
       currentIndex: 0,
@@ -169,8 +169,11 @@ export default {
         top: this.posY + "px",
       };
     },
+    saveEnabled() {
+      return this.titles.length > 0 && this.titles.every(title => title.trim() !== "") &&
+        this.files.length === this.titles.length;
+    }
   },
-
   methods: {
     normalizeDokumentDatum() {
       if (this.dateidaten[this.currentIndex].trim() === "") {
@@ -187,11 +190,13 @@ export default {
       else if (value.length === 6) {
         // MMYYYY -> MM.YYYY
         this.dateidaten[this.currentIndex] =
-          `${value.slice(0, 2)}.${value.slice(2)}`;
+          `01.${value.slice(0, 2)}.${value.slice(2)}`;
       }
       else if (value.length === 4) {
         // YYYY
-        this.dateidaten[this.currentIndex] = value;
+        this.dateidaten[this.currentIndex] = "01.01." + value;
+      } else {
+        this.dateidaten[this.currentIndex] = "";
       }
     },
     startDrag(event) {
@@ -276,6 +281,33 @@ export default {
     },
 
     apply() {
+      this.dateidaten = this.dateidaten.map((dateidatum) => {
+
+        if (typeof dateidatum !== 'string') {
+          return null;
+        }
+
+        const match = dateidatum.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+
+        if (!match) {
+          return null;
+        }
+
+        const [, tag, monat, jahr] = match;
+
+        const datum = new Date(`${jahr}-${monat}-${tag}T00:00:00`);
+
+        // Prüfen, ob das Datum tatsächlich existiert
+        if (
+          datum.getFullYear() !== Number(jahr) ||
+          datum.getMonth() + 1 !== Number(monat) ||
+          datum.getDate() !== Number(tag)
+        ) {
+          return null;
+        }
+
+        return `${jahr}-${monat}-${tag}`;
+      });
       this.$emit("apply", {
         titles: this.titles,
         files: this.files,
@@ -300,7 +332,7 @@ export default {
       this.dateidaten[i] = this.defaults.dateidatum || "";
       this.gesperrt[i] = Boolean(this.defaults.gesperrt);
       this.gesperrt_bis[i] = this.defaults.gesperrt_bis || "";
-      this.quellen_ids[i] = this.defaults.quellen_id || 0;
+      this.quellen_ids[i] = this.defaults.quellen_id || null;
     }
     this.loadPreview();
   },
@@ -326,7 +358,7 @@ export default {
       }
     }
   }
-};
+}
 </script>
 
 <style scoped>

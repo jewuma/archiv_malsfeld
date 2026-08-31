@@ -12,6 +12,23 @@ class Archivobjekte extends DbAccess {
   public function getTableName(): string {
     return "archivobjekte";
   }
+  public static function deleteIfOrphaned(int $id): JsonResponse {
+    $db = ArchivDb::getDbInstance();
+    $analogQuery = "SELECT COUNT(*) as child_count FROM analogobjekte WHERE archivobjekt_id = :id";
+    $stmt = $db->prepare($analogQuery);
+    $stmt->execute(['id' => $id]);
+    $result = $stmt->fetch();
+    $digitalQuery = "SELECT COUNT(*) as child_count FROM digitalobjekte WHERE archivobjekt_id = :id";
+    $stmt = $db->prepare($digitalQuery);
+    $stmt->execute(['id' => $id]);
+    $digitalResult = $stmt->fetch();
+    $totalChildCount = ($result['child_count'] ?? 0) + ($digitalResult['child_count'] ?? 0);
+    if ($totalChildCount === 0) {
+      $stmt = $db->prepare("DELETE FROM archivobjekte WHERE id = :id");
+      $stmt->execute(['id' => $id]);
+    }
+    return JsonResponse::success($totalChildCount === 0);
+  }
   public function saveDataset(array $data): array {
     return ArchivDb::saveDataSet($this->getTableName(), $data);
   }
@@ -25,7 +42,7 @@ class Archivobjekte extends DbAccess {
       "archivObjekt.start_ergaenzung" => "string,emptyOK",
       "archivObjekt.ende_ergaenzung" => "string,emptyOK",
       "archivObjekt.schlagworte" => "array,optional",
-      "archivObjekt.schlagworte.*" => "integer",
+      "archivObjekt.schlagworte.*" => "integer,optional",
       "archivObjekt.titel" => "string",
       "archivObjekt.beschreibung" => "string,emptyOK",
       "archivObjekt.dateiPfad" => "string,optional,emptyOK",
@@ -40,18 +57,18 @@ class Archivobjekte extends DbAccess {
       "archivObjekt.analogObjekte.*.objekttyp_id" => "integer",
       "archivObjekt.analogObjekte.*.gesperrt" => "boolean",
       "archivObjekt.analogObjekte.*.gesperrt_bis" => "string,optional,nullOK",
-      "archivObjekt.analogObjekte.*.lagerort_id" => "integer",
+      "archivObjekt.analogObjekte.*.lagerort_id" => "integer,nullOK",
       "archivObjekt.analogObjekte.*.regal_id" => "integer,nullOK",
       "archivObjekt.analogObjekte.*.fach_id" => "integer,nullOK",
       "archivObjekt.analogObjekte.*.platz_id" => "integer,nullOK",
       "archivObjekt.analogObjekte.*.digitalisiert" => "integer",
-      "archivObjekt.analogObjekte.*.dokumentendatum" => "string,optional,emptyOK",
+      "archivObjekt.analogObjekte.*.dokumentendatum" => "string,optional,nullOK",
       "archivObjekt.digitalObjekte" => "array,optional",
       "archivObjekt.digitalObjekte.*.id" => "integer,optional",
       "archivObjekt.digitalObjekte.*.gesperrt" => "boolean",
       "archivObjekt.digitalObjekte.*.gesperrt_bis" => "string,optional,nullOK",
-      "archivObjekt.digitalObjekte.*.dateidatum" => "date,emptyOK",
-      "archivObjekt.digitalObjekte.*.quellen_id" => "integer",
+      "archivObjekt.digitalObjekte.*.dateidatum" => "date,nullOK",
+      "archivObjekt.digitalObjekte.*.quellen_id" => "integer,nullOK",
       "archivObjekt.digitalObjekte.*.sourcefilepath" => "string,emptyOK",
     ];
 
@@ -93,7 +110,7 @@ class Archivobjekte extends DbAccess {
             $this->updateAnalogobjekt($analogobjekt["id"], $analogobjekt);
           } else {
             // Create new analogobjekt
-            $this->createAnalogobjekt($analogobjekt);
+            $analogobjekt["id"] = $this->createAnalogobjekt($analogobjekt);
           }
         }
       }
@@ -108,7 +125,7 @@ class Archivobjekte extends DbAccess {
             $this->updateDigitalobjekt($digitalobjekt["id"], $digitalobjekt);
           } else {
             // Create new digitalobjekt
-            $this->createDigitalobjekt($digitalobjekt);
+            $digitalobjekt["id"] = $this->createDigitalobjekt($digitalobjekt);
           }
         }
       }
@@ -123,6 +140,9 @@ class Archivobjekte extends DbAccess {
       throw $e;
     }
     $this->db->commit();
+    // Erzeugte IDs an den Aufrufer zurückgeben, damit Folgeaufrufe als Update erkannt werden
+    $archivObjekt["id"] = $archivObjektId;
+    $p["archivObjekt"] = $archivObjekt;
     return JsonResponse::success($p);
   }
   private function createArchivobjekt(array $archivObjektData): int {

@@ -53,11 +53,12 @@
 
         <div v-else class="row g-2 align-items-end">
           <div class="col-md-2">
-            <label class="form-label">Beschreibung</label>
-            <select class="form-select form-select-sm" v-model="suche.beschreibung">
-              <option value="">Alle</option>
-              <option value="ja">Ja</option>
-              <option value="nein">Nein</option>
+            <label class="form-label">archiviert/geändert</label>
+            <select class="form-select form-select-sm" v-model="suche.archiviert_geaendert">
+              <option value="">alle</option>
+              <option value="last_week">Letzte Woche</option>
+              <option value="last_month">Letzten Monat</option>
+              <option value="last_year">Letztes Jahr</option>
             </select>
           </div>
 
@@ -127,10 +128,25 @@
     cancel-text="Abbrechen" :message="deleteAnalogDialogMessage" @confirm="confirmDeleteAnalogobjekt"
     @cancel="closeDeleteAnalogDialog" />
   <AddDigitalDialog v-if="showAddDigitalDialog" :tree="addDigitalDialogTree" :quellen="digitalFixedData.quellen"
-    :row="addDigitalDialogRow" @confirm="saveAddDigitalobjekt" @cancel="closeAddDigitalDialog" />
-  <MessageDialog v-if="showDeleteDigitalDialog" title="Digitalobjekt löschen" confirm-text="Löschen"
+    :row="addDigitalDialogRow" @confirm="saveAddDigitalobjekt" @cancel="closeAddDigitalDialog"
+    @refresh-tree="refreshTree" />
+  <MessageDialog v-if="showDeleteDigitalDialog" title="Digitalobjekt löschen" confirm-text="Ausführen"
     cancel-text="Abbrechen" :message="deleteDigitalDialogMessage" @confirm="confirmDeleteDigitalobjekt"
-    @cancel="closeDeleteDigitalDialog" />
+    @cancel="closeDeleteDigitalDialog">
+    <p style="white-space: pre-line">{{ deleteDigitalDialogMessage }}</p>
+    <div class="mt-3">
+      <div class="form-check">
+        <input id="delete-digital-permanent" v-model="deleteDigitalAction" class="form-check-input" type="radio"
+          value="delete">
+        <label class="form-check-label" for="delete-digital-permanent">Datei endgültig löschen</label>
+      </div>
+      <div class="form-check">
+        <input id="delete-digital-to-inbox" v-model="deleteDigitalAction" class="form-check-input" type="radio"
+          value="moveToInbox">
+        <label class="form-check-label" for="delete-digital-to-inbox">Datei in den Archiveingang verschieben</label>
+      </div>
+    </div>
+  </MessageDialog>
 </template>
 <script>
 import CardComponent from './CardComponent.vue';
@@ -182,7 +198,7 @@ export default {
         startJahr: 0,
         endJahr: 0,
         objektart: "",
-        beschreibung: "",
+        archiviert_geaendert: "",
         archivstatus: "",
         objekttyp_id: "",
         analog_archiv_id: "",
@@ -222,6 +238,7 @@ export default {
       showDeleteDigitalDialog: false,
       deleteDigitalDialogParent: null,
       deleteDigitalDialogRow: null,
+      deleteDigitalAction: 'delete',
     };
   },
   computed: {
@@ -299,7 +316,8 @@ export default {
       this.showAddAnalogDialog = true;
     },
     addFiles(id) {
-      console.log("addFiles", id);
+      const parentItem = this.tableData.find(item => item.id === id);
+      this.addDigitalobjekt(parentItem, null);
     },
     async addDigitalobjekt(parentItem, sourceRow) {
       this.addDigitalDialogParent = parentItem;
@@ -337,15 +355,17 @@ export default {
       this.$sendMsg(false, 'Digitalobjekt wurde angelegt.');
       this.closeAddDigitalDialog();
     },
-    deleteDigitalobjekt(parentItem, row) {
+    async deleteDigitalobjekt(parentItem, row) {
       this.deleteDigitalDialogParent = parentItem;
       this.deleteDigitalDialogRow = row;
+      this.deleteDigitalAction = 'delete';
       this.showDeleteDigitalDialog = true;
     },
     closeDeleteDigitalDialog() {
       this.showDeleteDigitalDialog = false;
       this.deleteDigitalDialogParent = null;
       this.deleteDigitalDialogRow = null;
+      this.deleteDigitalAction = 'delete';
     },
     async confirmDeleteDigitalobjekt() {
       if (!this.deleteDigitalDialogRow?.id || !this.deleteDigitalDialogParent?.id) {
@@ -353,10 +373,20 @@ export default {
         return;
       }
 
-      await this.$axios.get(`/Digitalobjekte/delete/${this.deleteDigitalDialogRow.id}`);
-      this.updateDigitalCount(this.deleteDigitalDialogParent.id, -1);
+      const endpoint = this.deleteDigitalAction === 'moveToInbox'
+        ? `/Digitalobjekte/deleteToInbox/${this.deleteDigitalDialogRow.id}`
+        : `/Digitalobjekte/delete/${this.deleteDigitalDialogRow.id}`;
+      const response = await this.$axios.get(endpoint);
+      if (response.data?.data?.archivobjektDeleted) {
+        this.removeArchivobjektRow(this.deleteDigitalDialogParent.id);
+      } else {
+        this.updateDigitalCount(this.deleteDigitalDialogParent.id, -1);
+      }
       this.$sendMsg(false, 'Digitalobjekt wurde gelöscht.');
       this.closeDeleteDigitalDialog();
+    },
+    removeArchivobjektRow(id) {
+      this.tableData = this.tableData.filter(row => row.id !== id);
     },
     updateDigitalCount(parentId, change) {
       const parentIndex = this.tableData.findIndex(row => row.id === parentId);
@@ -450,25 +480,29 @@ export default {
         return;
       }
 
-      await this.$axios.get(`/Analogobjekte/delete/${this.deleteAnalogDialogRow.id}`);
+      const response = await this.$axios.get(`/Analogobjekte/delete/${this.deleteAnalogDialogRow.id}`);
 
-      const parentIndex = this.tableData.findIndex(row => row.id === this.deleteAnalogDialogParent.id);
-      if (parentIndex >= 0) {
-        const parentRow = { ...this.tableData[parentIndex] };
-        const nextCount = Math.max(0, Number(parentRow.analogobjekt_anzahl || 0) - 1);
-        parentRow.analogobjekt_anzahl = nextCount;
-        parentRow.analogobjekt = {
-          ...(parentRow.analogobjekt || {}),
-          id: parentRow.id,
-          count: nextCount,
-        };
-        parentRow.hasDetails = nextCount > 0 || Number(parentRow.datei_anzahl || 0) > 0;
-        parentRow.analogReloadKey = (parentRow.analogReloadKey || 0) + 1;
-        if (nextCount === 0) {
-          parentRow.expanded = false;
+      if (response.data?.data?.archivobjektDeleted) {
+        this.removeArchivobjektRow(this.deleteAnalogDialogParent.id);
+      } else {
+        const parentIndex = this.tableData.findIndex(row => row.id === this.deleteAnalogDialogParent.id);
+        if (parentIndex >= 0) {
+          const parentRow = { ...this.tableData[parentIndex] };
+          const nextCount = Math.max(0, Number(parentRow.analogobjekt_anzahl || 0) - 1);
+          parentRow.analogobjekt_anzahl = nextCount;
+          parentRow.analogobjekt = {
+            ...(parentRow.analogobjekt || {}),
+            id: parentRow.id,
+            count: nextCount,
+          };
+          parentRow.hasDetails = nextCount > 0 || Number(parentRow.datei_anzahl || 0) > 0;
+          parentRow.analogReloadKey = (parentRow.analogReloadKey || 0) + 1;
+          if (nextCount === 0) {
+            parentRow.expanded = false;
+          }
+          this.tableData.splice(parentIndex, 1, parentRow);
+          this.tableData = [...this.tableData];
         }
-        this.tableData.splice(parentIndex, 1, parentRow);
-        this.tableData = [...this.tableData];
       }
 
       this.$sendMsg(false, 'Analogobjekt wurde gelöscht.');
@@ -483,6 +517,13 @@ export default {
       this.tableData = this.tableData.map(row => row.id === editedRow.id
         ? { ...row, [editedRow.fieldName]: editedRow.value }
         : row);
+    },
+    async refreshTree() {
+      const response = await this.$axios.post('/ArchivFiles/getTree', {
+        directory: 'archiveingang',
+        withFiles: true,
+      });
+      this.addDigitalDialogTree = response.data.data;
     },
     resetcriteria() {
       this.suche = {
@@ -517,8 +558,8 @@ export default {
       if (this.suche.suchbegriff) {
         payload.suchbegriff = this.suche.suchbegriff;
       }
-      if (this.suche.beschreibung) {
-        payload.beschreibung = this.suche.beschreibung;
+      if (this.suche.archiviert_geaendert) {
+        payload.archiviert_geaendert = this.suche.archiviert_geaendert;
       }
       if (this.suche.archivstatus !== "") {
         payload.archivstatus = Number(this.suche.archivstatus);

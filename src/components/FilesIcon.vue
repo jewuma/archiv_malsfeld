@@ -69,7 +69,7 @@ export default {
       if (type === "pdf")
         return "bi bi-file-earmark-pdf-fill text-danger";
 
-      if (["mp4", "avi", "mov", "mkv", "webm"].includes(type))
+      if (["mp4", "avi", "mov", "mkv", "webm", "mpg", "mpeg"].includes(type))
         return "bi bi-film text-primary";
 
       return "bi bi-files";
