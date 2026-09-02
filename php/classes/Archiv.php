@@ -106,7 +106,18 @@ class Archiv {
       HAVING COUNT(DISTINCT schlagwort_id) = $schlagwortCount)";
     }
     $ortWhere = isset($param["ort_id"]) ? "AND ao.ort_id = " . $param["ort_id"] : "";
-    $suchbegriff = isset($param["suchbegriff"]) && !empty($param["suchbegriff"]) ? "%" . $param["suchbegriff"] . "%" : null;
+    $suchbegriffe = isset($param["suchbegriff"]) && trim($param["suchbegriff"]) !== ""
+      ? explode(' ', trim($param["suchbegriff"]))
+      : [];
+    if (count($suchbegriffe) > 0) {
+      $suchbegriffWhereParts = [];
+      foreach ($suchbegriffe as $index => $wort) {
+        $suchbegriffWhereParts[] = "(ao.titel LIKE :suchbegriff$index OR ao.beschreibung LIKE :suchbegriff$index)";
+      }
+      $suchbegriffWhere = "AND (" . implode(" AND ", $suchbegriffWhereParts) . ")";
+    } else {
+      $suchbegriffWhere = "";
+    }
     $archiviertGeaendertWhere = "";
     if (isset($param["archiviert_geaendert"])) {
       if ($param["archiviert_geaendert"] === "last_week") {
@@ -197,19 +208,19 @@ class Archiv {
             $objekttypWhere
             $analogArchivIdWhere
             $digitalisiertOhneDateiWhere
+            $suchbegriffWhere
             AND (:startJahr IS NULL OR ao.zeitraum_start >= :startJahr)
             AND (:endJahr IS NULL OR ao.zeitraum_ende <= :endJahr)
-            AND (:suchbegriff IS NULL
-                OR th.name LIKE CONCAT('%', :suchbegriff, '%')
-                OR ao.titel LIKE CONCAT('%', :suchbegriff, '%')
-                OR ao.beschreibung LIKE CONCAT('%', :suchbegriff, '%')
-            )
         LIMIT 500";
     $paramArray = [
       ":startJahr" => $param["startJahr"] ?? null,
       ":endJahr" => $param["endJahr"] ?? null,
-      ":suchbegriff" => $suchbegriff
     ];
+    if (count($suchbegriffe) > 0) {
+      foreach ($suchbegriffe as $index => $wort) {
+        $paramArray[":suchbegriff$index"] = "%" . $wort . "%";
+      }
+    }
     return Archivdb::preparedWebQuery($sql, $paramArray);
   }
 }
